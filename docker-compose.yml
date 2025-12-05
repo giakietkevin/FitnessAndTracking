@@ -1,0 +1,126 @@
+version: '3.8'
+
+services:
+  # MongoDB Services
+  mongodb-users:
+    image: mongo:7.0
+    container_name: fitness-mongodb-users
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-users-data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: fitness_users
+
+  mongodb-workouts:
+    image: mongo:7.0
+    container_name: fitness-mongodb-workouts
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodb-workouts-data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: fitness_workouts
+
+  mongodb-tracking:
+    image: mongo:7.0
+    container_name: fitness-mongodb-tracking
+    ports:
+      - "27019:27017"
+    volumes:
+      - mongodb-tracking-data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: fitness_tracking
+
+  mongodb-notifications:
+    image: mongo:7.0
+    container_name: fitness-mongodb-notifications
+    ports:
+      - "27020:27017"
+    volumes:
+      - mongodb-notifications-data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: fitness_notifications
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: fitness-api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+    depends_on:
+      - user-service
+      - fitness-service
+      - tracking-service
+      - notification-service
+
+  # User Service
+  user-service:
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile
+    container_name: fitness-user-service
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - MONGODB_URI=mongodb://mongodb-users:27017/fitness_users
+    depends_on:
+      - mongodb-users
+
+  # Fitness Service
+  fitness-service:
+    build:
+      context: ./services/fitness-service
+      dockerfile: Dockerfile
+    container_name: fitness-fitness-service
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+      - MONGODB_URI=mongodb://mongodb-workouts:27017/fitness_workouts
+    depends_on:
+      - mongodb-workouts
+
+  # Tracking Service
+  tracking-service:
+    build:
+      context: ./services/tracking-service
+      dockerfile: Dockerfile
+    container_name: fitness-tracking-service
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=development
+      - PORT=3003
+      - MONGODB_URI=mongodb://mongodb-tracking:27017/fitness_tracking
+    depends_on:
+      - mongodb-tracking
+
+  # Notification Service
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: fitness-notification-service
+    ports:
+      - "3004:3004"
+    environment:
+      - NODE_ENV=development
+      - PORT=3004
+      - MONGODB_URI=mongodb://mongodb-notifications:27017/fitness_notifications
+    depends_on:
+      - mongodb-notifications
+
+volumes:
+  mongodb-users-data:
+  mongodb-workouts-data:
+  mongodb-tracking-data:
+  mongodb-notifications-data:
+

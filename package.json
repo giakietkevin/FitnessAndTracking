@@ -1,0 +1,29 @@
+{
+  "name": "fitness-and-tracking-microservices",
+  "version": "1.0.0",
+  "description": "Fitness and Tracking Website - Microservices Architecture",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install && cd gateway && npm install && cd ../services/user-service && npm install && cd ../fitness-service && npm install && cd ../tracking-service && npm install && cd ../notification-service && npm install",
+    "start:gateway": "cd gateway && npm start",
+    "start:user": "cd services/user-service && npm start",
+    "start:fitness": "cd services/fitness-service && npm start",
+    "start:tracking": "cd services/tracking-service && npm start",
+    "start:notification": "cd services/notification-service && npm start",
+    "dev:gateway": "cd gateway && npm run dev",
+    "dev:user": "cd services/user-service && npm run dev",
+    "dev:fitness": "cd services/fitness-service && npm run dev",
+    "dev:tracking": "cd services/tracking-service && npm run dev",
+    "dev:notification": "cd services/notification-service && npm run dev"
+  },
+  "keywords": [
+    "microservices",
+    "fitness",
+    "tracking",
+    "nodejs",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC"
+}
+
