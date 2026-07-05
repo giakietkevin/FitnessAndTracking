@@ -175,3 +175,4 @@ Mỗi microservice có database riêng (Database per Service pattern):
 4. **Documentation**: API documentation cho mỗi service
 5. **Testing**: Unit tests và integration tests cho mỗi service
 
+

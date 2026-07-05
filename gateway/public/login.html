@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập - Fitness & Tracking</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { 
+            font-family: sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+    <div class="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md">
+        <div class="text-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">FITNESS & TRACKING</h1>
+            <h2 class="text-xl font-semibold text-gray-600">ĐĂNG NHẬP</h2>
+        </div>
+        
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input 
+                    type="email" 
+                    id="login-email" 
+                    class="w-full border border-gray-300 rounded-lg p-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition"
+                    placeholder="Nhập email của bạn"
+                >
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Mật khẩu</label>
+                <input 
+                    type="password" 
+                    id="login-pass" 
+                    class="w-full border border-gray-300 rounded-lg p-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition"
+                    placeholder="Nhập mật khẩu"
+                >
+            </div>
+            <button 
+                onclick="handleLogin()" 
+                class="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold py-3 rounded-lg hover:from-blue-700 hover:to-purple-700 transition transform hover:scale-105 shadow-lg"
+            >
+                ĐĂNG NHẬP
+            </button>
+        </div>
+        
+        <p class="text-center text-sm text-gray-500 mt-6">
+            Chưa có tài khoản? 
+            <a href="register.html" class="text-blue-600 font-bold hover:underline">Đăng ký ngay</a>
+        </p>
+        
+        <div id="error-message" class="hidden mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm"></div>
+    </div>
+
+    <script>
+        // Enter key support
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('login-pass').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    handleLogin();
+                }
+            });
+        });
+
+        async function handleLogin() {
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-pass').value;
+            const errorDiv = document.getElementById('error-message');
+            
+            // Hide error message
+            errorDiv.classList.add('hidden');
+            
+            if(!email || !password) {
+                showError("Vui lòng nhập đủ thông tin!");
+                return;
+            }
+
+            // Basic email validation
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if(!emailRegex.test(email)) {
+                showError("Email không hợp lệ!");
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const result = await response.json();
+                
+                if(response.ok && result.status === 'success') {
+                    // Lưu thông tin người dùng vào trình duyệt
+                    localStorage.setItem('user_info', JSON.stringify(result.data));
+                    localStorage.setItem('token', result.token || result.data.token);
+                    
+                    // Chuyển hướng dựa trên role
+                    if (result.data.role === 'admin') {
+                        window.location.href = '/admin/index.html';
+                    } else {
+                        window.location.href = '/index.html';
+                    }
+                } else {
+                    showError(result.message || 'Đăng nhập thất bại!');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showError("Lỗi kết nối Server. Vui lòng thử lại sau!");
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
