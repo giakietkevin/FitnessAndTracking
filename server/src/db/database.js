@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   display_name TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -122,10 +123,39 @@ CREATE TABLE IF NOT EXISTS weight_logs (
   UNIQUE(user_id, date)
 );
 
+CREATE TABLE IF NOT EXISTS food_submissions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  source_food_id INTEGER REFERENCES foods(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'general',
+  serving_label TEXT NOT NULL DEFAULT '1 phần',
+  grams_per_serving REAL NOT NULL DEFAULT 100,
+  calories REAL NOT NULL,
+  protein_g REAL NOT NULL DEFAULT 0,
+  carbs_g REAL NOT NULL DEFAULT 0,
+  fat_g REAL NOT NULL DEFAULT 0,
+  is_natural INTEGER NOT NULL DEFAULT 1,
+  note TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  admin_note TEXT NOT NULL DEFAULT '',
+  reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_food_logs_user_date ON food_logs(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_workout_logs_user_date ON workout_logs(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_weight_logs_user_date ON weight_logs(user_id, date);
+CREATE INDEX IF NOT EXISTS idx_food_submissions_status ON food_submissions(status, created_at);
 `;
+
+function ensureMigrations(db) {
+  const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+  if (!userCols.includes('role')) {
+    db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin'))");
+  }
+}
 
 export function createDatabase(dbPath = path.resolve(process.cwd(), 'data', 'fitness.db')) {
   if (dbPath !== ':memory:') {
@@ -138,6 +168,7 @@ export function createDatabase(dbPath = path.resolve(process.cwd(), 'data', 'fit
   db.exec('PRAGMA busy_timeout = 5000;');
   db.exec('PRAGMA foreign_keys = ON;');
   db.exec(SCHEMA_SQL);
+  ensureMigrations(db);
   seedDatabase(db);
   return db;
 }

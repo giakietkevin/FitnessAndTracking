@@ -26,6 +26,7 @@ function formatProfileResponse(user, profile) {
       id: user.id,
       email: user.email,
       displayName: user.display_name,
+      role: user.role || 'user',
       createdAt: user.created_at
     },
     profile: {
@@ -85,7 +86,7 @@ export function createIdentityRouter(db, jwtSecret) {
         throw txErr;
       }
 
-      const user = db.prepare('SELECT id, email, display_name, created_at FROM users WHERE id = ?').get(userId);
+      const user = db.prepare('SELECT id, email, display_name, role, created_at FROM users WHERE id = ?').get(userId);
       const profile = db.prepare('SELECT * FROM profiles WHERE user_id = ?').get(userId);
       const token = issueToken(user, jwtSecret);
 
@@ -126,7 +127,7 @@ export function createIdentityRouter(db, jwtSecret) {
 
   router.get('/profile', requireAuth, (req, res, next) => {
     try {
-      const user = db.prepare('SELECT id, email, display_name, created_at FROM users WHERE id = ?').get(req.user.id);
+      const user = db.prepare('SELECT id, email, display_name, role, created_at FROM users WHERE id = ?').get(req.user.id);
       if (!user) throw new NotFoundError('Không tìm thấy tài khoản.');
       const profile = db.prepare('SELECT * FROM profiles WHERE user_id = ?').get(req.user.id);
       res.json(formatProfileResponse(user, profile));
@@ -137,7 +138,7 @@ export function createIdentityRouter(db, jwtSecret) {
 
   router.put('/profile', requireAuth, (req, res, next) => {
     try {
-      const currentUser = db.prepare('SELECT id, email, display_name, created_at FROM users WHERE id = ?').get(req.user.id);
+      const currentUser = db.prepare('SELECT id, email, display_name, role, created_at FROM users WHERE id = ?').get(req.user.id);
       const currentProfile = db.prepare('SELECT * FROM profiles WHERE user_id = ?').get(req.user.id);
       if (!currentUser || !currentProfile) throw new NotFoundError('Không tìm thấy hồ sơ.');
 
@@ -201,7 +202,7 @@ export function createIdentityRouter(db, jwtSecret) {
         ON CONFLICT(user_id, date) DO UPDATE SET weight_kg = excluded.weight_kg
       `).run(req.user.id, logDate, Number(weightKg));
 
-      const user = db.prepare('SELECT id, email, display_name, created_at FROM users WHERE id = ?').get(req.user.id);
+      const user = db.prepare('SELECT id, email, display_name, role, created_at FROM users WHERE id = ?').get(req.user.id);
       const profile = db.prepare('SELECT * FROM profiles WHERE user_id = ?').get(req.user.id);
       res.json(formatProfileResponse(user, profile));
     } catch (err) {

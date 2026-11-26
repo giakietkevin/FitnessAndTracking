@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { UnauthorizedError } from './errorHandler.js';
+import { ForbiddenError, UnauthorizedError } from './errorHandler.js';
 
 export function requireAuth(req, _res, next) {
   const header = req.headers.authorization || '';
@@ -17,4 +17,16 @@ export function requireAuth(req, _res, next) {
   } catch {
     return next(new UnauthorizedError());
   }
+}
+
+export function requireAdmin(req, _res, next) {
+  if (!req.user?.id) {
+    return next(new UnauthorizedError());
+  }
+  const row = req.app.locals.db.prepare('SELECT role FROM users WHERE id = ?').get(req.user.id);
+  if (!row || row.role !== 'admin') {
+    return next(new ForbiddenError('Chỉ tài khoản Admin mới có quyền duyệt món ăn.'));
+  }
+  req.user.role = row.role;
+  return next();
 }

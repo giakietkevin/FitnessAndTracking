@@ -18,6 +18,12 @@ export class UnauthorizedError extends AppError {
   }
 }
 
+export class ForbiddenError extends AppError {
+  constructor(message = 'Bạn không có quyền thực hiện thao tác này.') {
+    super(403, 'FORBIDDEN', message);
+  }
+}
+
 export class NotFoundError extends AppError {
   constructor(message = 'Không tìm thấy dữ liệu yêu cầu.') {
     super(404, 'NOT_FOUND', message);

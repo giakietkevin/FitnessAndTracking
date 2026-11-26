@@ -15,7 +15,7 @@ describe('Foundation & Database Seed', () => {
   it('seeds default Vietnamese foods and exercises', () => {
     const foods = db.prepare('SELECT COUNT(*) AS cnt FROM foods WHERE user_id IS NULL').get();
     const exercises = db.prepare('SELECT COUNT(*) AS cnt FROM exercises WHERE user_id IS NULL').get();
-    assert.ok(foods.cnt >= 20, 'Expected at least 20 seeded foods');
+    assert.ok(foods.cnt >= 80, `Expected at least 80 Vietnamese seeded foods, got ${foods.cnt}`);
     assert.ok(exercises.cnt >= 15, 'Expected at least 15 seeded exercises');
   });
 
