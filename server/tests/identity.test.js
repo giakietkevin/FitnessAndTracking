@@ -86,4 +86,83 @@ describe('Identity Module (Auth, Profile, BMI/TDEE)', () => {
     const wCount = db.prepare('SELECT COUNT(*) AS cnt FROM weight_logs').get().cnt;
     assert.equal(wCount, 1);
   });
+
+  it('applies teen calorie safety guidance for ages 12-17 and supports password change + rate limit', async () => {
+    const teenReg = await fetch(`${baseUrl}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'teen@example.com', password: 'password123', displayName: 'Gia Bảo' })
+    });
+    assert.equal(teenReg.status, 201);
+    const teenData = await teenReg.json();
+
+    const teenProfile = await fetch(`${baseUrl}/api/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${teenData.token}`
+      },
+      body: JSON.stringify({
+        gender: 'female',
+        age: 14,
+        heightCm: 155,
+        weightKg: 48,
+        activityLevel: 'light',
+        goalType: 'cut'
+      })
+    });
+    assert.equal(teenProfile.status, 200);
+    const teenBody = await teenProfile.json();
+    assert.equal(teenBody.metrics.isTeen, true);
+    assert.ok(teenBody.metrics.targetCalories >= 1400);
+    assert.ok(teenBody.metrics.teenGuidance.includes('12–17'));
+
+    // Wrong current password rejected
+    const badChange = await fetch(`${baseUrl}/api/auth/change-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${teenData.token}`
+      },
+      body: JSON.stringify({ currentPassword: 'wrong-password', newPassword: 'newpassword123' })
+    });
+    assert.equal(badChange.status, 401);
+
+    // Valid password change succeeds and works for login
+    const goodChange = await fetch(`${baseUrl}/api/auth/change-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${teenData.token}`
+      },
+      body: JSON.stringify({ currentPassword: 'password123', newPassword: 'newpassword123' })
+    });
+    assert.equal(goodChange.status, 200);
+
+    const relogin = await fetch(`${baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'teen@example.com', password: 'newpassword123' })
+    });
+    assert.equal(relogin.status, 200);
+
+    // Trigger rate limit after repeated register attempts on an isolated test app
+    const rlApp = createApp({ db: createDatabase(':memory:'), jwtSecret: 'rl-secret' });
+    const rlServer = rlApp.listen(0);
+    const rlUrl = `http://127.0.0.1:${rlServer.address().port}`;
+    try {
+      let lastStatus = 200;
+      for (let i = 0; i < 11; i++) {
+        const r = await fetch(`${rlUrl}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: 'bad-email', password: '123', displayName: 'A' })
+        });
+        lastStatus = r.status;
+      }
+      assert.equal(lastStatus, 429);
+    } finally {
+      rlServer.close();
+    }
+  });
 });

@@ -53,10 +53,13 @@ export function calculateBodyMetrics({
   const multiplier = ACTIVITY_MULTIPLIERS[activityLevel] ?? ACTIVITY_MULTIPLIERS.moderate;
   const tdee = Math.round(rawBmr * multiplier);
 
-  const offset = GOAL_CALORIE_OFFSET[goalType] ?? 0;
-  const targetCalories = Math.max(1200, tdee + offset);
+  const isTeen = numAge < 18;
+  const rawOffset = GOAL_CALORIE_OFFSET[goalType] ?? 0;
+  const effectiveOffset = isTeen && goalType === 'cut' ? -250 : rawOffset;
+  const minCalories = isTeen ? 1400 : 1200;
+  const targetCalories = Math.max(minCalories, tdee + effectiveOffset);
 
-  const proteinFactor = goalType === 'cut' ? 2.0 : goalType === 'bulk' ? 1.8 : 1.6;
+  const proteinFactor = goalType === 'cut' ? (isTeen ? 1.7 : 2.0) : goalType === 'bulk' ? 1.8 : 1.6;
   const proteinG = Math.round(numWeight * proteinFactor);
   const fatG = Math.round((targetCalories * 0.25) / 9);
   const carbsG = Math.max(40, Math.round((targetCalories - proteinG * 4 - fatG * 9) / 4));
@@ -67,6 +70,10 @@ export function calculateBodyMetrics({
     bmr,
     tdee,
     targetCalories,
+    isTeen,
+    teenGuidance: isTeen
+      ? 'Ở độ tuổi 12–17 đang phát triển, hệ thống giới hạn thâm hụt nhẹ (-250 kcal) và giữ sàn tối thiểu 1.400 kcal/ngày để đảm bảo chiều cao và học tập.'
+      : '',
     macroTargets: {
       proteinG,
       carbsG,

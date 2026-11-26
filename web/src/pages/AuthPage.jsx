@@ -3,7 +3,7 @@ import { ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 
 export default function AuthPage() {
-  const { login, register } = useAuth();
+  const { login, register, sessionNotice, clearSessionNotice } = useAuth();
   const initialMode = new URLSearchParams(window.location.search).get('mode') === 'login' ? 'login' : 'register';
   const [mode, setMode] = useState(initialMode);
   const [email, setEmail] = useState('');
@@ -77,6 +77,15 @@ export default function AuthPage() {
               ? 'Dữ liệu bữa ăn, lịch tập và cân nặng được lưu riêng theo tài khoản của bạn.'
               : 'Đăng nhập để tiếp tục ghi nhận thực đơn và buổi tập hôm nay.'}
           </p>
+
+          {sessionNotice && (
+            <div className="mb-4 text-xs text-amber-900 bg-amber-100 border border-amber-200 rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-2">
+              <span>{sessionNotice}</span>
+              <button type="button" onClick={clearSessionNotice} className="underline shrink-0 cursor-pointer">
+                Đóng
+              </button>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'register' && (

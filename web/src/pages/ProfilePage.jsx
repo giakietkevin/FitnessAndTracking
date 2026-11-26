@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LogOut, Trash2 } from 'lucide-react';
+import { KeyRound, LogOut, Trash2 } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -20,6 +20,11 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
+
+  const [pwdForm, setPwdForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [pwdSaving, setPwdSaving] = useState(false);
+  const [pwdMsg, setPwdMsg] = useState('');
+  const [pwdErr, setPwdErr] = useState('');
 
   async function loadWeights() {
     const res = await api.getWeights(90);
@@ -49,6 +54,29 @@ export default function ProfilePage() {
   async function handleDeleteWeight(id) {
     await api.deleteWeight(id);
     await loadWeights();
+  }
+
+  async function handleChangePassword(e) {
+    e.preventDefault();
+    setPwdMsg('');
+    setPwdErr('');
+    if (pwdForm.newPassword !== pwdForm.confirmPassword) {
+      setPwdErr('Xác nhận mật khẩu mới chưa khớp.');
+      return;
+    }
+    setPwdSaving(true);
+    try {
+      await api.changePassword({
+        currentPassword: pwdForm.currentPassword,
+        newPassword: pwdForm.newPassword
+      });
+      setPwdForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setPwdMsg('Đã đổi mật khẩu thành công.');
+    } catch (error) {
+      setPwdErr(error.message);
+    } finally {
+      setPwdSaving(false);
+    }
   }
 
   return (
@@ -82,6 +110,12 @@ export default function ProfilePage() {
             <div className="text-xs text-[#5a5c53]">Calo mục tiêu</div>
             <div className="text-xl font-medium font-mono-num text-[#2e5b44]">{metrics.targetCalories} kcal</div>
           </div>
+        </div>
+      )}
+
+      {metrics?.isTeen && metrics?.teenGuidance && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-950">
+          <strong>Khuyến nghị lứa tuổi 12–17:</strong> {metrics.teenGuidance}
         </div>
       )}
 
@@ -233,6 +267,52 @@ export default function ProfilePage() {
           )}
         </div>
       </div>
+
+      <form onSubmit={handleChangePassword} className="nk-card p-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <KeyRound className="w-4 h-4 text-[#2e5b44]" />
+          <h2 className="text-lg font-medium">Bảo mật & Đổi mật khẩu</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          <div>
+            <label className="block text-sm font-medium mb-1">Mật khẩu hiện tại</label>
+            <input
+              type="password"
+              required
+              value={pwdForm.currentPassword}
+              onChange={(e) => setPwdForm((p) => ({ ...p, currentPassword: e.target.value }))}
+              className="nk-input"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Mật khẩu mới (tối thiểu 6 ký tự)</label>
+            <input
+              type="password"
+              required
+              minLength={6}
+              value={pwdForm.newPassword}
+              onChange={(e) => setPwdForm((p) => ({ ...p, newPassword: e.target.value }))}
+              className="nk-input"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Nhập lại mật khẩu mới</label>
+            <input
+              type="password"
+              required
+              minLength={6}
+              value={pwdForm.confirmPassword}
+              onChange={(e) => setPwdForm((p) => ({ ...p, confirmPassword: e.target.value }))}
+              className="nk-input"
+            />
+          </div>
+        </div>
+        {pwdMsg && <p className="text-sm text-[#2e5b44] font-medium">{pwdMsg}</p>}
+        {pwdErr && <p className="text-sm text-[#9e2a1f]">{pwdErr}</p>}
+        <button type="submit" disabled={pwdSaving} className="nk-btn-secondary">
+          {pwdSaving ? 'Đang cập nhật...' : 'Đổi mật khẩu'}
+        </button>
+      </form>
     </div>
   );
 }

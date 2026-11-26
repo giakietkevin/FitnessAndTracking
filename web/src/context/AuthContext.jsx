@@ -9,12 +9,14 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(Boolean(getStoredToken()));
+  const [sessionNotice, setSessionNotice] = useState('');
 
   const applySession = useCallback((data) => {
     if (data.token) {
       setStoredToken(data.token);
       setToken(data.token);
     }
+    setSessionNotice('');
     setUser(data.user);
     setProfile(data.profile);
     setMetrics(data.metrics);
@@ -27,6 +29,17 @@ export function AuthProvider({ children }) {
     setProfile(null);
     setMetrics(null);
   }, []);
+
+  useEffect(() => {
+    const onUnauthorized = () => {
+      if (getStoredToken()) {
+        setSessionNotice('Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.');
+        logout();
+      }
+    };
+    window.addEventListener('nk:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('nk:unauthorized', onUnauthorized);
+  }, [logout]);
 
   const refreshProfile = useCallback(async () => {
     if (!getStoredToken()) {
@@ -73,6 +86,8 @@ export function AuthProvider({ children }) {
         profile,
         metrics,
         loading,
+        sessionNotice,
+        clearSessionNotice: () => setSessionNotice(''),
         isAuthenticated: Boolean(token && user),
         login,
         register,

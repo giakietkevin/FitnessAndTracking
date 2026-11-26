@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { ConflictError, NotFoundError, UnauthorizedError, ValidationError } from '../../middleware/errorHandler.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { createRateLimiter } from '../../middleware/rateLimit.js';
 import { ACTIVITY_MULTIPLIERS, GOAL_CALORIE_OFFSET, calculateBodyMetrics } from './calculator.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -51,8 +52,18 @@ function issueToken(user, jwtSecret) {
 
 export function createIdentityRouter(db, jwtSecret) {
   const router = Router();
+  const loginLimiter = createRateLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: 15,
+    message: 'Thử đăng nhập quá nhiều lần. Vui lòng đợi ít phút rồi thử lại.'
+  });
+  const registerLimiter = createRateLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    message: 'Bạn đã tạo quá nhiều tài khoản liên tiếp. Vui lòng thử lại sau ít phút.'
+  });
 
-  router.post('/auth/register', (req, res, next) => {
+  router.post('/auth/register', registerLimiter, (req, res, next) => {
     try {
       const email = String(req.body?.email || '').trim().toLowerCase();
       const password = String(req.body?.password || '');
@@ -99,7 +110,7 @@ export function createIdentityRouter(db, jwtSecret) {
     }
   });
 
-  router.post('/auth/login', (req, res, next) => {
+  router.post('/auth/login', loginLimiter, (req, res, next) => {
     try {
       const email = String(req.body?.email || '').trim().toLowerCase();
       const password = String(req.body?.password || '');
@@ -205,6 +216,37 @@ export function createIdentityRouter(db, jwtSecret) {
       const user = db.prepare('SELECT id, email, display_name, role, created_at FROM users WHERE id = ?').get(req.user.id);
       const profile = db.prepare('SELECT * FROM profiles WHERE user_id = ?').get(req.user.id);
       res.json(formatProfileResponse(user, profile));
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/auth/change-password', requireAuth, (req, res, next) => {
+    try {
+      const currentPassword = String(req.body?.currentPassword || '');
+      const newPassword = String(req.body?.newPassword || '');
+
+      if (!currentPassword) {
+        throw new ValidationError('Vui lòng nhập mật khẩu hiện tại.');
+      }
+      if (newPassword.length < 6) {
+        throw new ValidationError('Mật khẩu mới cần ít nhất 6 ký tự.');
+      }
+      if (newPassword === currentPassword) {
+        throw new ValidationError('Mật khẩu mới phải khác mật khẩu hiện tại.');
+      }
+
+      const user = db.prepare('SELECT id, password_hash FROM users WHERE id = ?').get(req.user.id);
+      if (!user) {
+        throw new NotFoundError('Không tìm thấy tài khoản.');
+      }
+      if (!bcrypt.compareSync(currentPassword, user.password_hash)) {
+        throw new UnauthorizedError('Mật khẩu hiện tại không chính xác.');
+      }
+
+      const newHash = bcrypt.hashSync(newPassword, 10);
+      db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, req.user.id);
+      res.json({ changed: true });
     } catch (err) {
       next(err);
     }

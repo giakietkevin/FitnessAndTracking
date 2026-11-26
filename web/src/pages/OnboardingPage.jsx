@@ -25,9 +25,11 @@ function previewMetrics({ gender, age, heightCm, weightKg, activityLevel, goalTy
   const bmr = 10 * w + 6.25 * h - 5 * a + offsetGender;
   const mult = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very_active: 1.9 }[activityLevel] || 1.55;
   const tdee = Math.round(bmr * mult);
-  const offsetGoal = { cut: -400, maintain: 0, bulk: 300 }[goalType] ?? 0;
-  const targetCalories = Math.max(1200, tdee + offsetGoal);
-  return { bmi, tdee, targetCalories };
+  const isTeen = a >= 12 && a < 18;
+  const rawOffset = { cut: -400, maintain: 0, bulk: 300 }[goalType] ?? 0;
+  const offsetGoal = isTeen && goalType === 'cut' ? -250 : rawOffset;
+  const targetCalories = Math.max(isTeen ? 1400 : 1200, tdee + offsetGoal);
+  return { bmi, tdee, targetCalories, isTeen };
 }
 
 export default function OnboardingPage() {
@@ -102,6 +104,13 @@ export default function OnboardingPage() {
               <div className="text-xl font-medium font-mono-num text-[#2e5b44] mt-0.5">{preview.targetCalories} kcal</div>
             </div>
           </div>
+
+          {preview.isTeen && (
+            <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-950">
+              <strong>Lưu ý dinh dưỡng tuổi 12–17:</strong> Cơ thể đang trong giai đoạn phát triển nên hệ thống giữ sàn tối thiểu{' '}
+              <span className="font-mono-num font-medium">1.400 kcal/ngày</span> và thâm hụt nhẹ (-250 kcal) nếu bạn chọn giảm mỡ.
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -27,6 +27,9 @@ async function request(path, { method = 'GET', body, token } = {}) {
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    if (res.status === 401 && !path.startsWith('/auth/')) {
+      window.dispatchEvent(new CustomEvent('nk:unauthorized'));
+    }
     const message = data?.error?.message || `Yêu cầu thất bại (${res.status})`;
     const err = new Error(message);
     err.status = res.status;
@@ -39,6 +42,7 @@ async function request(path, { method = 'GET', body, token } = {}) {
 export const api = {
   register: (payload) => request('/auth/register', { method: 'POST', body: payload, token: '' }),
   login: (payload) => request('/auth/login', { method: 'POST', body: payload, token: '' }),
+  changePassword: (payload) => request('/auth/change-password', { method: 'POST', body: payload }),
   getProfile: () => request('/profile'),
   updateProfile: (payload) => request('/profile', { method: 'PUT', body: payload }),
 
