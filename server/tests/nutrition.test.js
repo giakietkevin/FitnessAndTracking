@@ -109,4 +109,145 @@ describe('Nutrition Module (Foods & Daily Food Logs)', () => {
     });
     assert.equal(bDel.status, 404);
   });
+
+  it('supports user food submission and admin approval/rejection workflow', async () => {
+    const userA = await registerUser(baseUrl, 'submitter@example.com', 'Người gửi món');
+    const userB = await registerUser(baseUrl, 'viewer@example.com', 'Người xem');
+
+    // Non-admin cannot access admin food-submissions
+    const forbiddenRes = await fetch(`${baseUrl}/api/admin/food-submissions`, {
+      headers: { Authorization: `Bearer ${userA.token}` }
+    });
+    assert.equal(forbiddenRes.status, 403);
+
+    // Log in as seeded default admin
+    const adminLoginRes = await fetch(`${baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'admin@nhipkhoe.local', password: 'admin123' })
+    });
+    assert.equal(adminLoginRes.status, 200);
+    const adminAuth = await adminLoginRes.json();
+    assert.equal(adminAuth.user.role, 'admin');
+
+    // User A creates a custom food and submits for public catalog approval
+    const createSubRes = await fetch(`${baseUrl}/api/foods`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${userA.token}`
+      },
+      body: JSON.stringify({
+        name: 'Bún riêu ốc sườn đặc biệt',
+        category: 'meal',
+        servingLabel: '1 tô',
+        gramsPerServing: 520,
+        calories: 460,
+        proteinG: 26,
+        carbsG: 54,
+        fatG: 14,
+        submitForPublic: true,
+        submissionNote: 'Món ăn phổ biến bữa sáng miền Bắc'
+      })
+    });
+    assert.equal(createSubRes.status, 201);
+    const createdBody = await createSubRes.json();
+    assert.ok(createdBody.submission);
+    assert.equal(createdBody.submission.status, 'pending');
+
+    // User B submits another dish that will be rejected
+    const rejectSubRes = await fetch(`${baseUrl}/api/food-submissions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${userB.token}`
+      },
+      body: JSON.stringify({
+        name: 'Món thử nghiệm chưa rõ calo',
+        category: 'meal',
+        servingLabel: '1 phần',
+        gramsPerServing: 100,
+        calories: 10,
+        proteinG: 0,
+        carbsG: 0,
+        fatG: 0,
+        note: 'Thử nghiệm'
+      })
+    });
+    assert.equal(rejectSubRes.status, 201);
+    const { submission: toReject } = await rejectSubRes.json();
+
+    // User B should not see User A's unapproved dish yet
+    const beforeApproveSearch = await fetch(`${baseUrl}/api/foods?q=Bún riêu ốc`, {
+      headers: { Authorization: `Bearer ${userB.token}` }
+    });
+    const beforeBody = await beforeApproveSearch.json();
+    assert.equal(beforeBody.foods.length, 0);
+
+    // Admin inspects pending queue
+    const adminQueueRes = await fetch(`${baseUrl}/api/admin/food-submissions?status=pending`, {
+      headers: { Authorization: `Bearer ${adminAuth.token}` }
+    });
+    assert.equal(adminQueueRes.status, 200);
+    const queueBody = await adminQueueRes.json();
+    assert.equal(queueBody.counts.pending, 2);
+
+    // Admin approves User A's submission with slight calorie adjustment
+    const approveRes = await fetch(
+      `${baseUrl}/api/admin/food-submissions/${createdBody.submission.id}/approve`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminAuth.token}`
+        },
+        body: JSON.stringify({
+          calories: 475,
+          adminNote: 'Đã chuẩn hóa calo theo khẩu phần 520g'
+        })
+      }
+    );
+    assert.equal(approveRes.status, 200);
+    const approveBody = await approveRes.json();
+    assert.equal(approveBody.submission.status, 'approved');
+    assert.equal(approveBody.food.calories, 475);
+    assert.equal(approveBody.food.isCustom, false);
+
+    // Admin rejects User B's submission
+    const rejectRes = await fetch(`${baseUrl}/api/admin/food-submissions/${toReject.id}/reject`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminAuth.token}`
+      },
+      body: JSON.stringify({
+        adminNote: 'Thông số dinh dưỡng chưa chính xác'
+      })
+    });
+    assert.equal(rejectRes.status, 200);
+    const rejectedBody = await rejectRes.json();
+    assert.equal(rejectedBody.submission.status, 'rejected');
+
+    // Now User B sees the approved dish in shared catalog, but NOT the rejected one
+    const afterApproveSearch = await fetch(`${baseUrl}/api/foods?q=Bún riêu ốc`, {
+      headers: { Authorization: `Bearer ${userB.token}` }
+    });
+    const afterBody = await afterApproveSearch.json();
+    assert.equal(afterBody.foods.length, 1);
+    assert.equal(afterBody.foods[0].calories, 475);
+
+    const rejectedSearch = await fetch(`${baseUrl}/api/foods?q=chưa rõ calo`, {
+      headers: { Authorization: `Bearer ${userA.token}` }
+    });
+    const rejectedSearchBody = await rejectedSearch.json();
+    assert.equal(rejectedSearchBody.foods.length, 0);
+
+    // User A sees approved status in their submissions list
+    const mineRes = await fetch(`${baseUrl}/api/food-submissions/mine`, {
+      headers: { Authorization: `Bearer ${userA.token}` }
+    });
+    const mineBody = await mineRes.json();
+    assert.equal(mineBody.submissions.length, 1);
+    assert.equal(mineBody.submissions[0].status, 'approved');
+  });
 });
