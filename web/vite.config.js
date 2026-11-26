@@ -12,8 +12,21 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
-        changeOrigin: true
+        target: 'http://127.0.0.1:3001',
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', (_err, _req, res) => {
+            if (!res.headersSent) {
+              res.writeHead(502, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                error: {
+                  code: 'API_UNREACHABLE',
+                  message: 'Không kết nối được tới Backend API (cổng 3001). Hãy kiểm tra terminal xem server đã chạy chưa.'
+                }
+              }));
+            }
+          });
+        }
       }
     }
   },

@@ -73,10 +73,17 @@ export function createIdentityRouter(db, jwtSecret) {
       }
 
       const passwordHash = bcrypt.hashSync(password, 10);
-      const result = db.prepare('INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)').run(email, passwordHash, displayName);
-      const userId = Number(result.lastInsertRowid);
-
-      db.prepare('INSERT INTO profiles (user_id) VALUES (?)').run(userId);
+      let userId;
+      db.exec('BEGIN');
+      try {
+        const result = db.prepare('INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)').run(email, passwordHash, displayName);
+        userId = Number(result.lastInsertRowid);
+        db.prepare('INSERT INTO profiles (user_id) VALUES (?)').run(userId);
+        db.exec('COMMIT');
+      } catch (txErr) {
+        db.exec('ROLLBACK');
+        throw txErr;
+      }
 
       const user = db.prepare('SELECT id, email, display_name, created_at FROM users WHERE id = ?').get(userId);
       const profile = db.prepare('SELECT * FROM profiles WHERE user_id = ?').get(userId);

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -19,7 +19,7 @@ if (!viteBin) {
 }
 
 const procs = [
-  spawn(process.execPath, ['--no-warnings', '--watch', 'src/index.js'], {
+  spawn(process.execPath, ['--no-warnings', 'src/index.js'], {
     cwd: serverDir,
     stdio: 'inherit'
   }),
@@ -30,11 +30,20 @@ const procs = [
 ];
 
 let exiting = false;
+function killProc(proc) {
+  if (!proc.pid) return;
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
+  } else if (!proc.killed) {
+    proc.kill('SIGTERM');
+  }
+}
+
 function shutdown(code = 0) {
   if (exiting) return;
   exiting = true;
   for (const p of procs) {
-    if (!p.killed) p.kill('SIGTERM');
+    killProc(p);
   }
   process.exit(code);
 }

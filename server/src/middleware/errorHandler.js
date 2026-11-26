@@ -41,10 +41,11 @@ export function errorHandler(err, _req, res, _next) {
   }
 
   console.error(err);
+  const detail = process.env.NODE_ENV === 'production' ? '' : ` (${err?.message || 'Unknown error'})`;
   return res.status(500).json({
     error: {
       code: 'INTERNAL_ERROR',
-      message: 'Lỗi hệ thống nội bộ.'
+      message: `Lỗi hệ thống nội bộ${detail}.`
     }
   });
 }

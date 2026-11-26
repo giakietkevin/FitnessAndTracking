@@ -135,6 +135,7 @@ export function createDatabase(dbPath = path.resolve(process.cwd(), 'data', 'fit
   if (dbPath !== ':memory:') {
     db.exec('PRAGMA journal_mode = WAL;');
   }
+  db.exec('PRAGMA busy_timeout = 5000;');
   db.exec('PRAGMA foreign_keys = ON;');
   db.exec(SCHEMA_SQL);
   seedDatabase(db);
