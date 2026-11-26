@@ -166,6 +166,36 @@ describe('Tracking Module (Weights & Dashboard Analytics)', () => {
     assert.match(roadmap.projection.estimatedCompletionDate, /^\d{4}-\d{2}-\d{2}$/);
     assert.equal(roadmap.projection.milestones.length, 3);
 
+    // Every meal must have balanced structure and menu totals must scientifically align with P/C/F targets
+    for (const meal of roadmap.nutritionPlan.meals) {
+      assert.ok(meal.items.length >= 2, `Expected >=2 items in ${meal.label}`);
+      if (meal.mealType === 'lunch' || meal.mealType === 'dinner') {
+        assert.ok(meal.items.some((i) => i.category === 'protein'), `${meal.label} must include protein`);
+        assert.ok(meal.items.some((i) => i.category === 'veggie'), `${meal.label} must include veggies`);
+      }
+    }
+    const { menuTotals, targetCalories } = roadmap.nutritionPlan;
+    const { proteinG, carbsG, fatG } = roadmap.bodyMetrics.macroTargets;
+    assert.ok(Math.abs(menuTotals.calories - targetCalories) <= targetCalories * 0.15, `Calories ${menuTotals.calories} too far from ${targetCalories}`);
+    assert.ok(menuTotals.proteinG >= proteinG * 0.85, `Protein ${menuTotals.proteinG}g too low vs target ${proteinG}g`);
+    assert.ok(menuTotals.fatG >= fatG * 0.75, `Fat ${menuTotals.fatG}g too low vs target ${fatG}g`);
+    assert.ok(menuTotals.carbsG >= carbsG * 0.75, `Carbs ${menuTotals.carbsG}g too low vs target ${carbsG}g`);
+
+    // Also verify maintain and bulk menus resolve without missing foods
+    for (const gType of ['maintain', 'bulk']) {
+      const gRes = await (
+        await fetch(`${baseUrl}/api/tracking/roadmap/design`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ goalType: gType })
+        })
+      ).json();
+      for (const m of gRes.roadmap.nutritionPlan.meals) {
+        assert.ok(m.items.length >= 2, `Expected >=2 items for ${gType} ${m.label}`);
+      }
+      assert.ok(gRes.roadmap.nutritionPlan.menuTotals.proteinG >= gRes.roadmap.bodyMetrics.macroTargets.proteinG * 0.8);
+    }
+
     // Apply both workout plan and sample meals to 2026-11-27
     const applyRes = await fetch(`${baseUrl}/api/tracking/roadmap/apply`, {
       method: 'POST',

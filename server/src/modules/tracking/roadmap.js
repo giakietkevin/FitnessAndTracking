@@ -21,29 +21,41 @@ const DAY_LABELS = {
 const MEAL_SLOTS = [
   { mealType: 'breakfast', label: 'Bữa sáng', ratio: 0.25 },
   { mealType: 'lunch', label: 'Bữa trưa', ratio: 0.35 },
-  { mealType: 'dinner', label: 'Bữa tối', ratio: 0.3 },
-  { mealType: 'snack', label: 'Ăn phụ', ratio: 0.1 }
+  { mealType: 'dinner', label: 'Bữa tối', ratio: 0.28 },
+  { mealType: 'snack', label: 'Ăn phụ', ratio: 0.12 }
 ];
 
+// Every dish name MUST match an exact entry in SEED_FOODS (server/src/db/seed.js).
 const MENU_TEMPLATES = {
   cut: {
-    breakfast: ['Trứng gà luộc', 'Khoai lang luộc', 'Cà phê đen (không đường)'],
-    lunch: ['Cơm gạo lứt', 'Ức gà áp chảo', 'Rau muống luộc'],
-    dinner: ['Cá thu kho cà', 'Canh cải ngọt thịt bằm', 'Cơm trắng (chén vừa)'],
-    snack: ['Sữa chua Hy Lạp không đường', 'Táo tươi']
+    breakfast: ['Bánh mì nguyên cám', 'Trứng gà luộc', 'Sữa tươi không đường', 'Dưa leo & cà chua'],
+    lunch: ['Ức gà luộc / áp chảo', 'Cơm gạo lứt', 'Bông cải xanh hấp', 'Canh rau ngót thịt băm'],
+    dinner: ['Cá diêu hồng hấp gừng', 'Cơm gạo lứt', 'Đậu phụ trắng', 'Cải thìa luộc'],
+    snack: ['Sữa chua không đường', 'Quả bơ tươi', 'Ổi tươi', 'Whey Protein (1 muỗng)']
   },
   maintain: {
-    breakfast: ['Phở bò tái chín', 'Trứng gà ốp la'],
-    lunch: ['Cơm trắng (chén vừa)', 'Thịt heo nạc luộc', 'Canh bí đỏ thịt bằm', 'Cải thìa xào tỏi'],
-    dinner: ['Cơm trắng (chén vừa)', 'Cá diêu hồng hấp gừng', 'Đậu hũ sốt cà chua'],
-    snack: ['Chuối tiêu chín', 'Sữa tươi không đường']
+    breakfast: ['Phở bò tái', 'Trứng gà luộc', 'Cam sành'],
+    lunch: ['Thịt nạc vai heo luộc', 'Cơm trắng', 'Canh mồng tơi nấu cua', 'Rau muống luộc'],
+    dinner: ['Cá lóc kho tộ', 'Cơm trắng', 'Canh bí đỏ thịt băm', 'Bông cải xanh hấp'],
+    snack: ['Sữa chua không đường', 'Chuối tiêu', 'Sữa tươi không đường']
   },
   bulk: {
-    breakfast: ['Bún bò Huế', 'Trứng gà luộc', 'Sữa đậu nành ít đường'],
-    lunch: ['Cơm tấm sườn bì chả', 'Trứng gà ốp la', 'Canh khổ qua nhồi thịt'],
-    dinner: ['Cơm trắng (chén vừa)', 'Thịt bò xào hành tây', 'Ức gà áp chảo', 'Bông cải xanh luộc'],
-    snack: ['Chuối tiêu chín', 'Yến mạch nấu chín', 'Sữa tươi không đường']
+    breakfast: ['Phở bò tái', 'Trứng gà ốp la', 'Sữa tươi không đường', 'Chuối tiêu'],
+    lunch: ['Thịt bò nạc', 'Cơm trắng', 'Canh bí đỏ thịt băm', 'Rau muống xào tỏi'],
+    dinner: ['Cá hồi áp chảo', 'Ức gà luộc / áp chảo', 'Cơm trắng', 'Bông cải xanh hấp'],
+    snack: ['Yến mạch cán dẹt', 'Sữa tươi không đường', 'Chuối tiêu', 'Whey Protein (1 muỗng)']
   }
+};
+
+const SERVING_CHOICES_BY_CATEGORY = {
+  protein: [1, 1.5, 2],
+  carb: [0.5, 1, 1.5, 2],
+  veggie: [1, 1.5],
+  fruit: [0.5, 1, 1.5],
+  dairy: [1, 2],
+  drink: [1],
+  meal: [1, 1.5],
+  general: [1, 1.5]
 };
 
 const WORKOUT_SPLITS = {
@@ -104,22 +116,95 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function pickServingsForSlot(foods, slotCalTarget) {
-  const baseCal = foods.reduce((s, f) => s + f.calories, 0);
-  if (baseCal <= 0) return foods.map((f) => ({ food: f, servings: 1 }));
-  const factor = slotCalTarget / baseCal;
-  return foods.map((f, idx) => {
-    // Adjust main carb/protein dish slightly to align closer to user's calorie budget
-    let servings = 1;
-    if (idx === 0) {
-      if (factor >= 1.65) servings = 2;
-      else if (factor >= 1.25) servings = 1.5;
-      else if (factor <= 0.65) servings = 0.5;
-    } else if (factor >= 1.8) {
-      servings = 1.5;
+function computeMenuTotals(entries) {
+  let calories = 0;
+  let proteinG = 0;
+  let carbsG = 0;
+  let fatG = 0;
+  for (const e of entries) {
+    calories += e.food.calories * e.servings;
+    proteinG += e.food.protein_g * e.servings;
+    carbsG += e.food.carbs_g * e.servings;
+    fatG += e.food.fat_g * e.servings;
+  }
+  return { calories, proteinG, carbsG, fatG };
+}
+
+function getServingChoices(food, goalType, isTeen, targetCalories) {
+  // Never force Whey protein powder on teens 12-17 or maintenance plans
+  if (food.name.includes('Whey Protein') && (isTeen || goalType === 'maintain')) {
+    return [0];
+  }
+  if (food.name.includes('Trứng')) {
+    return [1, 2];
+  }
+  if (food.name.includes('Whey Protein')) {
+    return [0, 1];
+  }
+  if (food.name.includes('Quả bơ')) {
+    return [1, 1.5];
+  }
+  if (food.category === 'carb' && targetCalories >= 2600) {
+    return [1, 1.5, 2, 2.5];
+  }
+  return SERVING_CHOICES_BY_CATEGORY[food.category] || [1, 1.5];
+}
+
+/**
+ * Optimizes discrete servings across all 4 daily meals using coordinate descent
+ * so the daily menu aligns closely with Calories, Protein, Carbs, and Fat targets
+ * as well as each meal's proportional calorie budget.
+ */
+function optimizeDailyMenu(entries, targets, mealBudgets, goalType, isTeen) {
+  const loss = (state) => {
+    const tot = computeMenuTotals(state);
+    const calErr = (tot.calories - targets.calories) / Math.max(1, targets.calories);
+    const proErr = (tot.proteinG - targets.proteinG) / Math.max(1, targets.proteinG);
+    const carbErr = (tot.carbsG - targets.carbsG) / Math.max(1, targets.carbsG);
+    const fatErr = (tot.fatG - targets.fatG) / Math.max(1, targets.fatG);
+
+    let mealDistPenalty = 0;
+    for (const slot of MEAL_SLOTS) {
+      const slotCal = state
+        .filter((e) => e.mealType === slot.mealType)
+        .reduce((s, e) => s + e.food.calories * e.servings, 0);
+      const targetSlotCal = mealBudgets[slot.mealType];
+      const diff = (slotCal - targetSlotCal) / Math.max(1, targetSlotCal);
+      mealDistPenalty += diff * diff;
     }
-    return { food: f, servings };
-  });
+
+    return (
+      3.0 * calErr * calErr +
+      3.5 * proErr * proErr +
+      2.0 * carbErr * carbErr +
+      2.5 * fatErr * fatErr +
+      0.35 * mealDistPenalty
+    );
+  };
+
+  for (let pass = 0; pass < 16; pass++) {
+    let improved = false;
+    for (let idx = 0; idx < entries.length; idx++) {
+      const choices = getServingChoices(entries[idx].food, goalType, isTeen, targets.calories);
+      let bestServings = entries[idx].servings;
+      let bestLoss = loss(entries);
+
+      for (const candidate of choices) {
+        if (candidate === entries[idx].servings) continue;
+        entries[idx].servings = candidate;
+        const candidateLoss = loss(entries);
+        if (candidateLoss < bestLoss - 1e-6) {
+          bestLoss = candidateLoss;
+          bestServings = candidate;
+          improved = true;
+        }
+      }
+      entries[idx].servings = bestServings;
+    }
+    if (!improved) break;
+  }
+
+  return entries.filter((e) => e.servings > 0);
 }
 
 export function buildPersonalizedRoadmap(db, userId, options = {}) {
@@ -148,9 +233,10 @@ export function buildPersonalizedRoadmap(db, userId, options = {}) {
   });
 
   const currentWeightKg = Number(profile.weight_kg);
-  let targetWeightKg = options.targetWeightKg !== undefined && options.targetWeightKg !== '' && options.targetWeightKg !== null
-    ? Number(options.targetWeightKg)
-    : profile.target_weight_kg;
+  let targetWeightKg =
+    options.targetWeightKg !== undefined && options.targetWeightKg !== '' && options.targetWeightKg !== null
+      ? Number(options.targetWeightKg)
+      : profile.target_weight_kg;
 
   if (!Number.isFinite(targetWeightKg) || targetWeightKg <= 0) {
     targetWeightKg =
@@ -164,9 +250,10 @@ export function buildPersonalizedRoadmap(db, userId, options = {}) {
   }
 
   const targetDateInput = options.targetDate !== undefined ? options.targetDate : profile.target_date;
-  const preferredDate = targetDateInput && /^\d{4}-\d{2}-\d{2}$/.test(String(targetDateInput))
-    ? String(targetDateInput)
-    : null;
+  const preferredDate =
+    targetDateInput && /^\d{4}-\d{2}-\d{2}$/.test(String(targetDateInput))
+      ? String(targetDateInput)
+      : null;
 
   const weightDiffKg = Number((targetWeightKg - currentWeightKg).toFixed(1));
   const dailyDeltaKcal = metrics.targetCalories - metrics.tdee;
@@ -189,11 +276,11 @@ export function buildPersonalizedRoadmap(db, userId, options = {}) {
     estimatedCompletionDate = addDays(today, estimatedWeeks * 7);
     timelineNote = `Với mức chênh ${Math.abs(dailyDeltaKcal)} kcal/ngày, tốc độ an toàn dự kiến khoảng ${Math.abs(weeklyRateKg)} kg/tuần.`;
   } else {
-    // User picked e.g. cut goal while targetWeight > currentWeight
     const defaultRate = goalType === 'cut' ? -0.35 : 0.27;
     estimatedWeeks = Math.max(2, Math.min(104, Math.ceil(Math.abs(weightDiffKg) / Math.abs(defaultRate))));
     estimatedCompletionDate = addDays(today, estimatedWeeks * 7);
-    timelineNote = 'Cân nặng mục tiêu đang lệch chiều với chế độ dinh dưỡng đã chọn; bạn nên đồng bộ mục tiêu trong hồ sơ.';
+    timelineNote =
+      'Cân nặng mục tiêu đang lệch chiều với chế độ dinh dưỡng đã chọn; bạn nên đồng bộ mục tiêu trong hồ sơ.';
   }
 
   let deadlineWarning = '';
@@ -232,7 +319,7 @@ export function buildPersonalizedRoadmap(db, userId, options = {}) {
     }
   ];
 
-  // Build Macro Breakdown with kcal & %
+  // Macro Breakdown with kcal & %
   const { proteinG, carbsG, fatG } = metrics.macroTargets;
   const proteinKcal = proteinG * 4;
   const carbsKcal = carbsG * 4;
@@ -242,40 +329,71 @@ export function buildPersonalizedRoadmap(db, userId, options = {}) {
   const macroBreakdown = {
     protein: { grams: proteinG, calories: proteinKcal, percent: Math.round((proteinKcal / totalMacroKcal) * 100) },
     carbs: { grams: carbsG, calories: carbsKcal, percent: Math.round((carbsKcal / totalMacroKcal) * 100) },
-    fat: { grams: fatG, calories: fatKcal, percent: Math.max(1, 100 - Math.round((proteinKcal / totalMacroKcal) * 100) - Math.round((carbsKcal / totalMacroKcal) * 100)) }
+    fat: {
+      grams: fatG,
+      calories: fatKcal,
+      percent: Math.max(
+        1,
+        100 - Math.round((proteinKcal / totalMacroKcal) * 100) - Math.round((carbsKcal / totalMacroKcal) * 100)
+      )
+    }
   };
 
-  // Build Vietnamese Nutrition Menu from real DB foods
+  // Build Scientific Balanced Menu from real DB foods
   const allSharedFoods = db.prepare('SELECT * FROM foods WHERE user_id IS NULL').all();
   const foodByName = new Map(allSharedFoods.map((f) => [f.name, f]));
   const templateNames = MENU_TEMPLATES[goalType] || MENU_TEMPLATES.maintain;
 
-  const meals = MEAL_SLOTS.map((slot) => {
+  const rawEntries = [];
+  const mealBudgets = {};
+  for (const slot of MEAL_SLOTS) {
+    mealBudgets[slot.mealType] = Math.round(metrics.targetCalories * slot.ratio);
     const desiredNames = templateNames[slot.mealType] || [];
-    const matched = desiredNames.map((n) => foodByName.get(n)).filter(Boolean);
-    const fallbackFoods = matched.length > 0 ? matched : allSharedFoods.slice(0, 2);
-    const picked = pickServingsForSlot(fallbackFoods, metrics.targetCalories * slot.ratio);
+    for (const dishName of desiredNames) {
+      const food = foodByName.get(dishName);
+      if (!food) continue;
+      const initialServings = dishName.includes('Whey Protein') && (metrics.isTeen || goalType === 'maintain') ? 0 : 1;
+      rawEntries.push({ mealType: slot.mealType, food, servings: initialServings });
+    }
+  }
 
-    const items = picked.map(({ food, servings }) => ({
-      foodId: food.id,
-      foodName: food.name,
-      servingLabel: food.serving_label,
-      servings,
-      calories: Math.round(food.calories * servings),
-      proteinG: Number((food.protein_g * servings).toFixed(1)),
-      carbsG: Number((food.carbs_g * servings).toFixed(1)),
-      fatG: Number((food.fat_g * servings).toFixed(1))
-    }));
+  const optimizedEntries = optimizeDailyMenu(
+    rawEntries,
+    {
+      calories: metrics.targetCalories,
+      proteinG,
+      carbsG,
+      fatG
+    },
+    mealBudgets,
+    goalType,
+    metrics.isTeen
+  );
+
+  const meals = MEAL_SLOTS.map((slot) => {
+    const slotItems = optimizedEntries
+      .filter((e) => e.mealType === slot.mealType)
+      .map(({ food, servings }) => ({
+        foodId: food.id,
+        foodName: food.name,
+        category: food.category,
+        servingLabel: food.serving_label,
+        servings,
+        calories: Math.round(food.calories * servings),
+        proteinG: Number((food.protein_g * servings).toFixed(1)),
+        carbsG: Number((food.carbs_g * servings).toFixed(1)),
+        fatG: Number((food.fat_g * servings).toFixed(1))
+      }));
 
     return {
       mealType: slot.mealType,
       label: slot.label,
-      targetCalories: Math.round(metrics.targetCalories * slot.ratio),
-      calories: items.reduce((s, i) => s + i.calories, 0),
-      proteinG: Number(items.reduce((s, i) => s + i.proteinG, 0).toFixed(1)),
-      carbsG: Number(items.reduce((s, i) => s + i.carbsG, 0).toFixed(1)),
-      fatG: Number(items.reduce((s, i) => s + i.fatG, 0).toFixed(1)),
-      items
+      targetCalories: mealBudgets[slot.mealType],
+      calories: slotItems.reduce((s, i) => s + i.calories, 0),
+      proteinG: Number(slotItems.reduce((s, i) => s + i.proteinG, 0).toFixed(1)),
+      carbsG: Number(slotItems.reduce((s, i) => s + i.carbsG, 0).toFixed(1)),
+      fatG: Number(slotItems.reduce((s, i) => s + i.fatG, 0).toFixed(1)),
+      items: slotItems
     };
   });
 
@@ -295,11 +413,12 @@ export function buildPersonalizedRoadmap(db, userId, options = {}) {
         ? 5
         : 4;
 
-  const style = options.workoutStyle === 'home' || options.workoutStyle === 'gym'
-    ? options.workoutStyle
-    : metrics.isTeen || activityLevel === 'sedentary'
-      ? 'home'
-      : 'gym';
+  const style =
+    options.workoutStyle === 'home' || options.workoutStyle === 'gym'
+      ? options.workoutStyle
+      : metrics.isTeen || activityLevel === 'sedentary'
+        ? 'home'
+        : 'gym';
 
   const split = WORKOUT_SPLITS[sessionsPerWeek] || WORKOUT_SPLITS[4];
   const scheduleDefs = split[style] || split.gym;
@@ -335,7 +454,6 @@ export function buildPersonalizedRoadmap(db, userId, options = {}) {
     };
   });
 
-  // Deduplicated flat list for saving as a reusable workout_plan
   const uniquePlanItems = [];
   const seenEx = new Set();
   for (const s of weeklySchedule) {
