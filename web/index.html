@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="vi" data-type="software" data-radius="round" data-ground="sage" data-buttons="arrow" data-motion>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nhịp Khỏe: theo dõi dinh dưỡng và tập luyện cho mọi người</title>
+<meta name="description" content="Tính BMI, TDEE và macro theo mục tiêu, ghi nhận bữa ăn Việt quen thuộc và lên kế hoạch tập luyện hàng ngày trên một giao diện gọn nhẹ.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Nhịp Khỏe: theo dõi dinh dưỡng và tập luyện cho mọi người">
+<meta property="og:description" content="Ghi bữa ăn tính calo, lập lịch tập Gym hay chạy bộ và theo dõi cân nặng mỗi tuần.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#efe9e0">
+<meta name="site-kind" content="software">
+<meta name="page-type" content="software">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..700&family=JetBrains+Mono:wght@400..500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/system.css">
+<link rel="stylesheet" href="/assets/ui/cards.css">
+<link rel="stylesheet" href="/assets/motion/motion.css">
+<link rel="stylesheet" href="/assets/backgrounds/backgrounds.css">
+<link rel="stylesheet" href="/assets/layout/layout.css">
+<link rel="stylesheet" href="/assets/icons/icon.css">
+<link rel="stylesheet" href="/assets/ui/base.css">
+<link rel="stylesheet" href="/assets/ui/window/fragment.css">
+<link rel="stylesheet" href="/assets/ui/stat/fragment.css">
+<link rel="stylesheet" href="/assets/ui/toggles/fragment.css">
+<link rel="stylesheet" href="/assets/ui/checklist/fragment.css">
+<link rel="stylesheet" href="/assets/ui/notify/fragment.css">
+<style>
+:root {
+  --p-bg: #efe9e0; --p-surface: #e2d9cb; --p-ink: #22261f; --p-muted: #5a5c53;
+  --p-accent: #2e5b44; --p-accent-ink: #ffffff; --p-action: #2e5b44; --p-action-ink: #ffffff;
+  --p-inv-bg: #22261f; --p-inv-surface: #2e322a; --p-inv-ink: #efe9e0; --p-inv-muted: #a19e96;
+  --p-inv-accent: #efe9e0; --p-inv-accent-ink: #22261f; --p-inv-action: #efe9e0; --p-inv-action-ink: #22261f;
+  --font-display: "Manrope", system-ui, sans-serif;
+  --font-text: "Manrope", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --display-weight: 500;
+  --display-tracking: -0.035em;
+  --display-tracking-xl: -0.045em;
+  --ly-scale: 0.97;
+  --u-muted: #4d5148;
+  --u-soft: #4d5148;
+}
+
+/* Hero collage frame & product window pieces */
+.hero__art {
+  background:
+    radial-gradient(70% 60% at 18% 12%, color-mix(in oklab, var(--ground-surface) 80%, white), transparent 70%),
+    radial-gradient(60% 50% at 90% 100%, color-mix(in oklab, var(--ground-bg) 80%, var(--ground-accent)), transparent 70%),
+    var(--ground-bg);
+}
+.hero__art::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .20; mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .3 0 0 0 0 .3 0 0 0 0 .3 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.d-win { background: #fff; color: #16181a; border-radius: 12px; overflow: hidden; font: 400 14px/1.4 var(--font-text);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / .07), 0 24px 60px -28px rgb(0 0 0 / .45); text-align: left; }
+.d-win__bar { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 14px; border-bottom: 1px solid rgb(0 0 0 / .07); font-size: 13px; color: #5d6268; }
+.d-win__dots { display: flex; gap: 6px; }
+.d-win__dots i { width: 10px; height: 10px; border-radius: 50%; background: #dcdfe2; }
+.d-win__body { display: grid; grid-template-columns: 148px 1fr; min-height: 420px; }
+.d-side { padding: 14px 10px; border-right: 1px solid rgb(0 0 0 / .07); display: grid; align-content: start; gap: 2px; font-size: 13px; color: #4d5257; }
+.d-side > span { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border-radius: 7px; }
+.d-side > span.is-on { background: rgb(0 0 0 / .05); color: #16181a; font-weight: 500; }
+.d-side > span i { width: 12px; height: 12px; border-radius: 4px; background: currentColor; opacity: .28; flex: none; }
+.d-side .d-side__label { font-size: 13px; color: #8a8f94; height: 26px; margin-top: 8px; }
+.d-main { padding: 16px 18px; padding-right: var(--ly-cut-room); display: grid; align-content: start; gap: 12px; min-width: 0; }
+.d-main__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.d-main__head h4 { font: 600 16px/1.2 var(--font-text); letter-spacing: -0.01em; margin: 0; color: inherit; }
+.d-btn { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border-radius: 7px; background: #22261f; color: #fff; font-size: 13px; font-weight: 500; }
+.d-tabs { display: flex; gap: 4px; font-size: 13px; }
+.d-tabs span { padding: 4px 10px; border-radius: 99px; color: #6b7076; }
+.d-tabs span.is-on { background: rgb(0 0 0 / .06); color: #16181a; font-weight: 500; }
+.d-rows { display: grid; border-top: 1px solid rgb(0 0 0 / .07); }
+.d-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) 68px 88px; align-items: center; gap: 12px; padding: 9px 2px; border-bottom: 1px solid rgb(0 0 0 / .07); font-size: 13px; }
+.d-row .d-thumb { width: 34px; height: 34px; border-radius: 8px; background: #e8efe9; color: #2e5b44; display: grid; place-items: center; font: 500 12px/1 var(--font-mono); }
+.d-row b { display: block; font-weight: 500; color: #16181a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.d-row small { color: #7b8086; font-size: 13px; }
+.d-row .num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-mono); font-size: 12.5px; }
+.d-chip { justify-self: end; display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 99px; font-size: 12.5px; font-weight: 500; background: #e7f4ec; color: #17673f; white-space: nowrap; }
+.d-chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.d-chip--low { background: #fdf0dc; color: #8a5300; }
+.d-card { background: #fff; color: #16181a; border-radius: 12px; padding: 14px 16px; font: 400 14px/1.4 var(--font-text); text-align: left;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / .07), 0 18px 44px -20px rgb(0 0 0 / .45); }
+.d-card h5 { margin: 0 0 4px; font: 600 14px/1.3 var(--font-text); }
+.d-card__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.hero__art > .ly-piece--note { left: var(--s-6); bottom: var(--s-6); width: 300px; z-index: 2; }
+.d-note__line { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: 13px; color: #3d4247; border-top: 1px solid rgb(0 0 0 / .06); }
+.d-note__line:first-of-type { border-top: 0; }
+.d-note__line i { width: 18px; height: 18px; border-radius: 50%; flex: none; display: grid; place-items: center; background: #e7f4ec; color: #17673f; font-style: normal; font-size: 12px; font-weight: 700; }
+.d-note__line b { font-weight: 500; color: #16181a; }
+.hero__proof { font-size: var(--t-small); color: var(--muted); }
+@media (max-width: 1023px) { .hero__art > .ly-piece--note { left: var(--s-4); bottom: var(--s-4); width: 270px; } }
+@media (max-width: 639px) {
+  .d-win__body { grid-template-columns: 1fr; min-height: 0; }
+  .d-side, .d-tabs { display: none; }
+  .d-row { grid-template-columns: 34px minmax(0, 1fr) 84px; padding: 8px 2px; }
+  .d-row .num { display: none; }
+  .d-row:nth-of-type(n+3) { display: none; }
+}
+
+/* App frame recipe (sections-library.md) */
+.app.ui { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); margin-top: var(--s-7); background: var(--u-bg); border: 1px solid var(--u-border); border-radius: var(--u-r); box-shadow: var(--u-shadow); }
+.app > .app__pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.app > .app__pane + .app__pane { border-left: 1px solid var(--u-line); }
+.app > .app__pane > .ui-panel { width: 100%; border: 0; border-radius: 0; box-shadow: none; }
+.app .ui-win__search { width: 120px; height: 30px; line-height: 1; }
+.app .ui-win__ph { line-height: 1; white-space: nowrap; }
+.app > .app__pane::after { content: ""; position: absolute; inset: auto 0 0 0; height: 64px; background: linear-gradient(transparent, var(--u-bg)); pointer-events: none; }
+@media (min-width: 1024px) and (max-width: 1279px) { .app.ui { grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); } }
+@media (max-width: 1023px) {
+  .app.ui { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .app > .app__pane--list { max-height: 252px; }
+  .app > .app__pane--list::after { display: none; }
+  .app .ui-win__side { display: none; }
+  .app .ui-win__body { grid-template-columns: minmax(0, 1fr); }
+  .app > .app__pane + .app__pane { border-left: 0; border-top: 1px solid var(--u-line); }
+}
+@media (max-width: 639px) {
+  .app.ui { grid-template-rows: minmax(0, 1fr); }
+  .app > .app__pane--list { display: none; }
+  .app > .app__pane + .app__pane { border-top: 0; }
+}
+
+/* Features 2x2 & Steps panels */
+#features .panel { --p-h: 224px; background: radial-gradient(80% 70% at 20% 0%, color-mix(in oklab, var(--ground-surface) 80%, white), transparent 70%), var(--ground-bg); }
+#steps .panel { --p-h: 240px; background: radial-gradient(80% 70% at 20% 0%, color-mix(in oklab, var(--ground-surface) 80%, white), transparent 70%), var(--ground-bg); }
+#steps .d-card { padding: 12px 16px; }
+#steps .d-note__line { padding: 6px 0; }
+.step-num { display: inline-block; font: 500 13px/1 var(--font-mono); color: var(--ink); margin-bottom: var(--s-2); }
+.faq-card { margin-top: var(--s-5); max-width: 360px; }
+#faq .section-head { margin-bottom: var(--s-4); }
+@media (min-width: 640px) and (max-width: 1023px) {
+  #features { --h: 2; }
+  #features .panel { --p-h: 196px; }
+  #steps { --h: 2; }
+  #faq { --h: 2; }
+}
+@media (max-width: 639px) {
+  #features .panel { --p-h: 184px; }
+  #steps { --hm: 2; }
+  #steps .panel { --p-h: 210px; }
+  .faq-card { margin-top: var(--s-4); padding: 10px 14px; }
+  .faq-card .d-note__line { display: none; }
+  #faq .faq__item { padding-block: 10px; }
+}
+</style>
+<script>document.documentElement.classList.add('m-enter');setTimeout(()=>document.documentElement.classList.add('m-enter-done'),700)</script>
+<script src="/assets/backgrounds/backgrounds.js"></script>
+<script>document.documentElement.classList.add('mo-js');setTimeout(()=>document.documentElement.classList.add('mo-safe'),2500)</script>
+<link rel="modulepreload" href="/assets/moments/moments.js">
+<link rel="modulepreload" href="/assets/moments/lib.js">
+<link rel="modulepreload" href="/assets/moments/liquid-type/moment.js">
+</head>
+<body>
+<!-- type: software
+     deal: hero collage, nav nav-centre, close close-type, footer footer-dark, rhythm surface-pairs, buttons arrow, mark dots, ground sage
+     moments: liquid-type (#steps-h) -->
+
+<header class="nav nav--centre">
+  <div class="wrap nav__bar">
+    <a class="skip-link" href="#top">Chuyển đến nội dung</a>
+    <a class="nav__logo" href="#top"><span class="mark" data-mark="dots" aria-hidden="true"></span>Nhịp Khỏe</a>
+    <nav class="nav__links" aria-label="Điều hướng chính">
+      <div class="nav__item"><a class="nav__link" href="#app">Tổng quan</a></div>
+      <div class="nav__item"><a class="nav__link" href="#features">Tính năng</a></div>
+      <div class="nav__item"><a class="nav__link" href="#steps">Quy trình</a></div>
+      <div class="nav__item"><a class="nav__link" href="#faq">Hỏi đáp</a></div>
+    </nav>
+    <div class="nav__actions">
+      <a class="nav__link" href="/app.html?mode=login">Đăng nhập</a>
+      <a class="btn btn--primary" href="/app.html?mode=register">Mở ứng dụng<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"/><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"/></svg></a>
+    </div>
+    <button class="nav__toggle" type="button" aria-expanded="false" aria-label="Mở menu">
+      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 5h14M2 13h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero hero--collage bg-mist" data-enter aria-labelledby="hero-h">
+    <div class="wrap"><div class="hero-text grid hero__grid">
+      <div class="hero__text span-5">
+        <h1 id="hero-h">Ứng dụng dinh dưỡng và tập luyện</h1>
+        <p class="hero__lead">Tính BMI, TDEE và macro theo mục tiêu, ghi nhận món ăn Việt quen thuộc và lịch tập Gym hay chạy bộ chỉ trong vài chạm.</p>
+        <div class="btn-row">
+          <a class="btn btn--primary" href="/app.html?mode=register">Mở ứng dụng<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"/><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"/></svg></a>
+          <a class="btn btn--secondary" href="#app">Xem giao diện</a>
+        </div>
+        <p class="hero__proof">25 món ăn Việt có sẵn và 18 bài tập cơ bản, lưu riêng theo từng tài khoản.</p>
+      </div>
+      <div class="hero__art span-6 start-7" role="img" aria-label="Cửa sổ nhật ký ăn uống và tổng kết calo trong ngày của Nhịp Khỏe">
+        <div class="ly-piece ly-piece--main d-win" aria-hidden="true">
+          <div class="d-win__bar"><span class="d-win__dots"><i></i><i></i><i></i></span><span>Nhịp Khỏe · Nhật ký hôm nay</span></div>
+          <div class="d-win__body">
+            <div class="d-side">
+              <span class="is-on"><i></i>Hôm nay</span><span><i></i>Dinh dưỡng</span><span><i></i>Lịch tập</span><span><i></i>Cân nặng</span><span><i></i>Hồ sơ</span>
+              <span class="d-side__label">Mục tiêu</span><span><i></i>Giảm mỡ</span><span><i></i>2.150 kcal</span>
+            </div>
+            <div class="d-main">
+              <div class="d-main__head"><h4>Nhật ký bữa ăn</h4><span class="d-btn">+ Thêm món</span></div>
+              <div class="d-tabs"><span class="is-on">Tất cả 6</span><span>Sáng 1</span><span>Trưa 3</span><span>Tối 2</span></div>
+              <div class="d-rows">
+                <div class="d-row"><span class="d-thumb">S</span><div><b>Phở bò tái</b><small>Bữa sáng · 1 tô vừa</small></div><span class="num">430 kcal</span><span class="d-chip">Đã ghi</span></div>
+                <div class="d-row"><span class="d-thumb">T</span><div><b>Ức gà áp chảo</b><small>Bữa trưa · 150g · 46g đạm</small></div><span class="num">248 kcal</span><span class="d-chip">Đã ghi</span></div>
+                <div class="d-row"><span class="d-thumb">T</span><div><b>Cơm gạo lứt</b><small>Bữa trưa · 1 chén vừa</small></div><span class="num">168 kcal</span><span class="d-chip">Đã ghi</span></div>
+                <div class="d-row"><span class="d-thumb">T</span><div><b>Rau muống luộc</b><small>Bữa trưa · 1 đĩa</small></div><span class="num">30 kcal</span><span class="d-chip">Đã ghi</span></div>
+                <div class="d-row"><span class="d-thumb">P</span><div><b>Chuối tiêu</b><small>Ăn phụ trước tập · 1 quả</small></div><span class="num">105 kcal</span><span class="d-chip d-chip--low">Trước tập</span></div>
+                <div class="d-row"><span class="d-thumb">C</span><div><b>Cá hồi áp chảo</b><small>Bữa tối · 150g</small></div><span class="num">312 kcal</span><span class="d-chip">Đã ghi</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ly-piece ly-piece--note d-card" aria-hidden="true" data-ly-steps="700">
+          <div class="d-card__row"><h5>Cán cân hôm nay</h5><span class="d-chip" data-step data-step-at="4">Đạt chuẩn</span></div>
+          <div class="d-note__line" data-step><i>✓</i><span>Nạp vào <b>1.890 kcal</b> · 138g đạm</span></div>
+          <div class="d-note__line" data-step><i>✓</i><span>Chạy bộ Zone 2 · tiêu <b>280 kcal</b></span></div>
+          <div class="d-note__line" data-step><i>✓</i><span>Còn lại <b>540 kcal</b> cho bữa tối</span></div>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <section class="section" id="app" aria-labelledby="app-h">
+    <div class="wrap">
+      <div class="grid">
+        <div class="span-5"><h2 id="app-h">Nhật ký dinh dưỡng và tập luyện</h2></div>
+        <div class="span-6 start-7">
+          <p>Chọn nhanh món ăn từ thư viện tích hợp, đánh dấu hoàn thành lịch tập tuần và xem ngay biến động calo nạp vào so với tiêu hao qua từng ngày.</p>
+          <p><a class="link" href="/app.html">Vào không gian theo dõi</a></p>
+        </div>
+      </div>
+      <div class="ui app fill" role="img" aria-label="Giao diện quản lý nhật ký ăn tập và biểu đồ tiến độ 14 ngày" data-ui-pause-host>
+        <div class="app__pane app__pane--list">
+          <div class="ui ui-panel ui-win" data-ui="window" data-open="Đang theo dõi" data-work="Chờ tập" data-done="Hoàn thành">
+            <div class="ui-win__bar">
+              <span class="ui-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="ui-win__crumb">Nhịp Khỏe <i>/</i> <b>Tuần này</b></span>
+              <span class="ui-spacer"></span>
+              <span class="ui-win__search" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg><span class="ui-win__ph">Tìm</span><span class="ui-kbd">/</span></span>
+            </div>
+            <div class="ui-win__body">
+              <nav class="ui-win__side" aria-hidden="true">
+                <span class="ui-win__nav is-on">Hôm nay<em>9</em></span>
+                <span class="ui-win__nav">Bữa ăn<em>5</em></span>
+                <span class="ui-win__nav">Buổi tập<em>3</em></span>
+                <span class="ui-win__nav">Cân nặng</span>
+                <span class="ui-win__label">Kế hoạch</span>
+                <span class="ui-win__nav"><span class="ui-win__hash">#</span>Upper-Lower</span>
+                <span class="ui-win__nav"><span class="ui-win__hash">#</span>Zone-2</span>
+              </nav>
+              <div class="ui-win__main">
+                <div class="ui-win__cols" aria-hidden="true"><span>Hạng mục</span><span>Chi tiết</span><span>Trạng thái</span><span>Calo</span></div>
+                <ul class="ui-win__rows">
+                  <li class="ui-win__row" data-row><span class="ui-avatar" data-tone="1">BS</span><span class="ui-win__who">Yến mạch + Chuối</span><span class="ui-win__sub">Bữa sáng · 1 phần</span><span class="ui-win__st is-done" data-st>Hoàn thành</span><span class="ui-win__age">260</span></li>
+                  <li class="ui-win__row" data-row><span class="ui-avatar" data-tone="2">BS</span><span class="ui-win__who">Trứng gà luộc</span><span class="ui-win__sub">Bữa sáng · 2 quả</span><span class="ui-win__st is-done" data-st>Hoàn thành</span><span class="ui-win__age">156</span></li>
+                  <li class="ui-win__row" data-row><span class="ui-avatar" data-tone="3">BT</span><span class="ui-win__who">Cơm gạo lứt + Ức gà</span><span class="ui-win__sub">Bữa trưa · 150g</span><span class="ui-win__st is-done" data-st>Hoàn thành</span><span class="ui-win__age">415</span></li>
+                  <li class="ui-win__row" data-row><span class="ui-avatar" data-tone="4">BT</span><span class="ui-win__who">Bông cải xanh hấp</span><span class="ui-win__sub">Bữa trưa · 100g</span><span class="ui-win__st is-done" data-st>Hoàn thành</span><span class="ui-win__age">34</span></li>
+                  <li class="ui-win__row" data-row><span class="ui-avatar" data-tone="5">GY</span><span class="ui-win__who">Barbell Squat</span><span class="ui-win__sub">4 hiệp × 8 lần · 60kg</span><span class="ui-win__st is-done" data-st>Hoàn thành</span><span class="ui-win__age">−140</span></li>
+                  <li class="ui-win__row" data-row><span class="ui-avatar" data-tone="1">GY</span><span class="ui-win__who">Bench Press</span><span class="ui-win__sub">4 hiệp × 8 lần · 50kg</span><span class="ui-win__st is-done" data-st>Hoàn thành</span><span class="ui-win__age">−125</span></li>
+                  <li class="ui-win__row" data-row><span class="ui-avatar" data-tone="3">BP</span><span class="ui-win__who">Sữa chua không đường</span><span class="ui-win__sub">Ăn phụ · 1 hộp</span><span class="ui-win__st is-done" data-st>Hoàn thành</span><span class="ui-win__age">63</span></li>
+                  <li class="ui-win__row" data-row><span class="ui-avatar" data-tone="2">BT</span><span class="ui-win__who">Cá hồi áp chảo</span><span class="ui-win__sub">Bữa tối · 150g</span><span class="ui-win__st is-you" data-st>Chờ ghi</span><span class="ui-win__age">312</span></li>
+                  <li class="ui-win__row" data-row><span class="ui-avatar" data-tone="4">CD</span><span class="ui-win__who">Đi bộ nhanh</span><span class="ui-win__sub">Cardio · 25 phút</span><span class="ui-win__st" data-st>Lịch tập</span><span class="ui-win__age">−135</span></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="app__pane app__pane--open" data-ui-loop>
+          <div class="ui ui-panel ui-stat" data-ui="stat" data-from="1920" data-to="2140" data-suffix=" kcal">
+            <div class="ui-stat__head">
+              <div class="ui-stat__top">
+                <span class="ui-stat__label">Calo trung bình đạt mục tiêu</span>
+                <span class="ui-stat__range">14 ngày gần nhất</span>
+              </div>
+              <div class="ui-stat__line">
+                <span class="ui-stat__num" data-stat-num>2140 kcal</span>
+                <span class="ui-chip ui-chip--plain ui-stat__delta">−0.6 kg</span>
+                <span class="ui-stat__sub">so với mốc bắt đầu chu kỳ</span>
+              </div>
+            </div>
+            <div class="ui-stat__chart">
+              <svg class="ui-stat__svg" viewBox="0 0 400 120" preserveAspectRatio="none" aria-hidden="true">
+                <path class="ui-stat__grid" d="M0 30.5H400M0 60.5H400M0 90.5H400"/>
+                <path class="ui-stat__cover" fill-rule="evenodd" d=""/>
+                <g class="ui-stat__bars">
+                  <rect rx="3" x="0.00" y="45" width="21.14" height="75"/><rect rx="3" x="29.14" y="39" width="21.14" height="81"/>
+                  <rect rx="3" x="58.29" y="42" width="21.14" height="78"/><rect rx="3" x="87.43" y="34" width="21.14" height="86"/>
+                  <rect rx="3" x="116.57" y="40" width="21.14" height="80"/><rect rx="3" x="145.71" y="32" width="21.14" height="88"/>
+                  <rect rx="3" x="174.86" y="36" width="21.14" height="84"/><rect rx="3" x="204.00" y="29" width="21.14" height="91"/>
+                  <rect rx="3" x="233.14" y="33" width="21.14" height="87"/><rect rx="3" x="262.29" y="27" width="21.14" height="93"/>
+                  <rect rx="3" x="291.43" y="31" width="21.14" height="89"/><rect rx="3" x="320.57" y="24" width="21.14" height="96"/>
+                  <rect rx="3" x="349.71" y="28" width="21.14" height="92"/><rect rx="3" x="378.86" y="20" width="21.14" height="100"/>
+                </g>
+              </svg>
+              <div class="ui-stat__axis" aria-hidden="true"><span>Ngày 1</span><span>Ngày 7</span><span>Hôm nay</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section ground-surface g2" id="features" aria-labelledby="features-h">
+    <div class="wrap">
+      <div class="group">
+        <div class="section-head">
+          <h2 id="features-h">Bốn công cụ dinh dưỡng và tập luyện. <span class="muted">Ghi nhanh mỗi ngày.</span></h2>
+        </div>
+        <div class="grid">
+          <article class="card card--row card--open m-nolift span-6">
+            <h3>Tính TDEE và mục tiêu calo</h3>
+            <p>Tính chỉ số BMI, BMR và lượng calo khuyến nghị theo cân nặng, chiều cao và mức vận động.</p>
+            <div class="panel">
+              <div class="stage stage--fade-b"><div class="at-rise fit" style="--fit-max:360px;--ax:max(20px, 50% - 180px);--ay:28px;--ay-sm:16px">
+                <div class="ui ui-panel ui-toggles" data-ui="toggles">
+                  <div class="ui-head"><div class="ui-title">Chế độ tính mục tiêu</div><span class="ui-spacer"></span><div class="ui-meta" data-tg-count>Đang bật</div></div>
+                  <ul class="ui-toggles__list">
+                    <li class="ui-tg"><span class="ui-tg__text"><span class="ui-tg__label">Giảm mỡ an toàn</span><span class="ui-tg__sub">Thâm hụt 400 kcal, sàn tối thiểu 1.200 kcal</span></span><button class="ui-switch is-on" type="button" role="switch" aria-checked="true" aria-label="Giảm mỡ an toàn"><i></i></button></li>
+                    <li class="ui-tg"><span class="ui-tg__text"><span class="ui-tg__label">Ưu tiên đạm giữ cơ</span><span class="ui-tg__sub">2.0g Protein mỗi kg cân nặng</span></span><button class="ui-switch is-on" type="button" role="switch" aria-checked="true" aria-label="Ưu tiên đạm giữ cơ"><i></i></button></li>
+                    <li class="ui-tg"><span class="ui-tg__text"><span class="ui-tg__label">Tăng cơ sạch</span><span class="ui-tg__sub">Thặng dư 300 kcal mỗi ngày</span></span><button class="ui-switch" type="button" role="switch" aria-checked="false" aria-label="Tăng cơ sạch"><i></i></button></li>
+                  </ul>
+                </div>
+              </div></div>
+            </div>
+          </article>
+          <article class="card card--row card--open m-nolift span-6">
+            <h3>Ghi nhận dinh dưỡng ba chạm</h3>
+            <p>Tìm nhanh món ăn Việt Nam không cần gõ dấu hoặc lưu thêm món tự nấu.</p>
+            <div class="panel">
+              <div class="stage stage--fade-b"><div class="at-rise fit" style="--fit-max:360px;--ax:max(20px, 50% - 180px);--ay:28px;--ay-sm:16px" data-ui-loop>
+                <div class="ui ui-notify" data-ui="notify">
+                  <ul class="ui-notify__list" data-notify-list>
+                    <li class="ui-note"><span class="ui-avatar ui-note__av" data-tone="1">BS</span><span class="ui-note__text"><span class="ui-note__title">Phở bò tái · 1 tô<time>Sáng</time></span><span class="ui-note__body">430 kcal · 26g P · 58g C · 10g F</span></span></li>
+                    <li class="ui-note"><span class="ui-avatar ui-note__av" data-tone="3">BT</span><span class="ui-note__text"><span class="ui-note__title">Ức gà + Cơm gạo lứt<time>Trưa</time></span><span class="ui-note__body">415 kcal · 35g P · 35g C · 5g F</span></span></li>
+                    <li class="ui-note"><span class="ui-avatar ui-note__av" data-tone="5">BP</span><span class="ui-note__text"><span class="ui-note__title">Sữa chua không đường<time>Phụ</time></span><span class="ui-note__body">63 kcal · 3.8g P · 4.7g C · 3.3g F</span></span></li>
+                  </ul>
+                </div>
+              </div></div>
+            </div>
+          </article>
+        </div>
+      </div>
+      <div class="grid">
+        <article class="card card--row card--open m-nolift span-6">
+          <h3>Lập lịch tập luyện theo tuần</h3>
+          <p>Xếp lịch tập Gym hoặc Cardio theo thứ, hoàn thành cả buổi để tự tính calo tiêu hao.</p>
+          <div class="panel">
+            <div class="stage stage--fade-b"><div class="at-rise fit" style="--fit-max:360px;--ax:max(20px, 50% - 180px);--ay:28px;--ay-sm:16px">
+              <div class="ui ui-panel ui-checks" data-ui="checklist">
+                <div class="ui-checks__head"><div class="ui-title">Buổi tập Upper + Cardio</div><span class="ui-spacer"></span><div class="ui-meta" data-checks-count>3 / 5 bài</div></div>
+                <div class="ui-checks__bar"><i data-checks-bar style="--k:0.6"></i></div>
+                <ul class="ui-checks__list">
+                  <li class="ui-check is-done"><span class="ui-check__box"><svg viewBox="0 0 16 16"><path d="m4.5 8.2 2.3 2.3 4.7-5"/></svg></span><span class="ui-check__label">Bench Press · 4×8</span></li>
+                  <li class="ui-check is-done"><span class="ui-check__box"><svg viewBox="0 0 16 16"><path d="m4.5 8.2 2.3 2.3 4.7-5"/></svg></span><span class="ui-check__label">Pull-up / Lat Pulldown · 4×10</span></li>
+                  <li class="ui-check is-done"><span class="ui-check__box"><svg viewBox="0 0 16 16"><path d="m4.5 8.2 2.3 2.3 4.7-5"/></svg></span><span class="ui-check__label">Overhead Shoulder Press · 3×10</span></li>
+                  <li class="ui-check"><span class="ui-check__box"><svg viewBox="0 0 16 16"><path d="m4.5 8.2 2.3 2.3 4.7-5"/></svg></span><span class="ui-check__label">Chạy bộ Zone 2 · 25 phút</span></li>
+                </ul>
+              </div>
+            </div></div>
+          </div>
+        </article>
+        <article class="card card--row card--open m-nolift span-6">
+          <h3>Theo dõi cân nặng và dinh dưỡng</h3>
+          <p>Ghi cân nặng định kỳ, xem biểu đồ biến thiên và cán cân năng lượng 7 đến 30 ngày.</p>
+          <div class="panel">
+            <div class="stage stage--fade-b"><div class="at-rise fit" style="--fit-max:360px;--ax:max(20px, 50% - 180px);--ay:28px;--ay-sm:16px">
+              <div class="ui ui-panel ui-stat" data-ui="stat" data-from="70" data-to="68" data-suffix=" kg">
+                <div class="ui-stat__head">
+                  <div class="ui-stat__top"><span class="ui-stat__label">Cân nặng hiện tại</span><span class="ui-stat__range">30 ngày</span></div>
+                  <div class="ui-stat__line"><span class="ui-stat__num" data-stat-num>68.4 kg</span><span class="ui-chip ui-chip--plain ui-stat__delta">Đều đặn</span></div>
+                </div>
+                <div class="ui-stat__chart">
+                  <svg class="ui-stat__svg" viewBox="0 0 400 100" preserveAspectRatio="none" aria-hidden="true">
+                    <path class="ui-stat__grid" d="M0 25H400M0 55H400M0 85H400"/>
+                    <g class="ui-stat__bars">
+                      <rect rx="3" x="10" y="20" width="28" height="80"/><rect rx="3" x="65" y="26" width="28" height="74"/>
+                      <rect rx="3" x="120" y="30" width="28" height="70"/><rect rx="3" x="175" y="36" width="28" height="64"/>
+                      <rect rx="3" x="230" y="42" width="28" height="58"/><rect rx="3" x="285" y="48" width="28" height="52"/>
+                      <rect rx="3" x="340" y="54" width="28" height="46"/>
+                    </g>
+                  </svg>
+                </div>
+              </div>
+            </div></div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="steps" aria-labelledby="steps-h">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="steps-h" data-moment="liquid-type">Ba bước cùng Nhịp Khỏe</h2>
+      </div>
+      <div class="grid">
+        <article class="card card--row m-nolift span-4">
+          <span class="step-num">01</span>
+          <h3>Bước 1: Hồ sơ dinh dưỡng</h3>
+          <p>Nhập tuổi từ 12+, chiều cao và cân nặng để tính ngay TDEE.</p>
+          <div class="panel">
+            <div class="stage"><div class="at-rise fit" style="--fit-max:300px;--ax:max(16px, 50% - 150px);--ay:14px;--ay-sm:12px">
+              <div class="d-card" aria-hidden="true">
+                <div class="d-card__row"><h5>Chỉ số khởi tạo</h5><span class="d-chip">Dưới 1 phút</span></div>
+                <div class="d-note__line"><i>1</i><span>BMI <b>22.4</b> · Bình thường</span></div>
+                <div class="d-note__line"><i>2</i><span>TDEE <b>2.380 kcal/ngày</b></span></div>
+              </div>
+            </div></div>
+          </div>
+        </article>
+        <article class="card card--row m-nolift span-4">
+          <span class="step-num">02</span>
+          <h3>Bước 2: Nhật ký tập luyện</h3>
+          <p>Chọn nhanh món ăn Việt hoặc hoàn thành buổi tập trong 1 chạm.</p>
+          <div class="panel">
+            <div class="stage"><div class="at-rise fit" style="--fit-max:300px;--ax:max(16px, 50% - 150px);--ay:14px;--ay-sm:12px">
+              <div class="d-card" aria-hidden="true">
+                <div class="d-card__row"><h5>Ghi nhận nhanh</h5><span class="d-chip">3 chạm</span></div>
+                <div class="d-note__line"><i>✓</i><span>Bữa trưa · <b>415 kcal</b></span></div>
+                <div class="d-note__line"><i>✓</i><span>Buổi tập · <b>−265 kcal</b></span></div>
+              </div>
+            </div></div>
+          </div>
+        </article>
+        <article class="card card--row m-nolift span-4">
+          <span class="step-num">03</span>
+          <h3>Bước 3: Tiến độ cân nặng</h3>
+          <p>Xem biểu đồ calo nạp vào, tiêu hao và xu hướng cân nặng.</p>
+          <div class="panel">
+            <div class="stage"><div class="at-rise fit" style="--fit-max:300px;--ax:max(16px, 50% - 150px);--ay:14px;--ay-sm:12px">
+              <div class="d-card" aria-hidden="true">
+                <div class="d-card__row"><h5>Chuỗi ngày đều đặn</h5><span class="d-chip">Ổn định</span></div>
+                <div class="d-note__line"><i>✓</i><span>Đủ <b>138g</b> đạm trung bình</span></div>
+                <div class="d-note__line"><i>✓</i><span><b>4 buổi tập</b> hoàn thành</span></div>
+              </div>
+            </div></div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section ground-surface" id="faq" aria-labelledby="faq-h">
+    <div class="wrap">
+      <div class="grid grid--top">
+        <div class="span-5">
+          <div class="section-head">
+            <h2 id="faq-h">Câu hỏi về Nhịp Khỏe</h2>
+            <p>Thông tin ngắn gọn về cách tính chỉ số, dữ liệu món ăn và bảo mật tài khoản.</p>
+            <p><a class="link" href="/app.html?mode=register">Tạo tài khoản và dùng thử</a></p>
+          </div>
+          <div class="d-card faq-card" role="img" aria-label="Tóm tắt bảo mật và dữ liệu lưu trữ trên Nhịp Khỏe">
+            <div class="d-card__row"><h5>Tách biệt theo tài khoản</h5><span class="d-chip">JWT + SQLite</span></div>
+            <div class="d-note__line"><i>✓</i><span>25 món ăn Việt và 18 bài tập có sẵn</span></div>
+            <div class="d-note__line"><i>✓</i><span>An toàn cho người dùng từ 12 tuổi trở lên</span></div>
+          </div>
+        </div>
+        <div class="span-6 start-7">
+          <div class="faq">
+            <div class="faq__item">
+              <h3>Ứng dụng phù hợp với những ai?</h3>
+              <p>Phù hợp cho người từ 12 tuổi trở lên muốn kiểm soát khẩu phần ăn và duy trì thói quen tập Gym, chạy bộ.</p>
+            </div>
+            <div class="faq__item">
+              <h3>Có thể tự thêm món ăn Việt Nam riêng không?</h3>
+              <p>Có. Ngoài 25 món ăn có sẵn, bạn có thể lưu thêm món tự nấu kèm calo và lượng đạm, tinh bột, chất béo.</p>
+            </div>
+            <div class="faq__item">
+              <h3>Calo đốt khi tập luyện được tính thế nào?</h3>
+              <p>Hệ thống tính theo hệ số cường độ vận động (MET) nhân với cân nặng hiện tại và thời gian tập.</p>
+            </div>
+            <div class="faq__item">
+              <h3>Dữ liệu có dùng chung giữa các tài khoản không?</h3>
+              <p>Không. Toàn bộ thực đơn, lịch tập và cân nặng được cô lập hoàn toàn theo từng tài khoản riêng.</p>
+            </div>
+            <div class="faq__item">
+              <h3>Nhịp Khỏe có cần cài Docker hay database riêng?</h3>
+              <p>Không cần. Phiên bản local dùng SQLite tích hợp sẵn trong Node.js, chỉ cần một lệnh chạy là dùng ngay.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer closing footer--dark ground-inverse" id="contact" aria-labelledby="close-h">
+  <div class="wrap">
+    <div class="closing__cta close--type">
+      <div class="section-head">
+        <h2 id="close-h">Bắt đầu ghi nhận bữa ăn và buổi tập hôm nay</h2>
+        <p>Thiết lập hồ sơ trong dưới một phút, dữ liệu tách riêng theo từng tài khoản.</p>
+      </div>
+      <a class="btn btn--primary btn--xl btn--wide" href="/app.html?mode=register">Mở ứng dụng<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"/><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"/></svg></a>
+    </div>
+    <div class="closing__links">
+      <div class="grid">
+        <div class="span-4 stack-4">
+          <a class="nav__logo" href="#top"><span class="mark" data-mark="dots" aria-hidden="true"></span>Nhịp Khỏe</a>
+          <p class="footer__lede">Theo dõi dinh dưỡng tự nhiên và lịch trình tập luyện hàng ngày.</p>
+        </div>
+        <div class="span-2 footer__col"><h3>Ứng dụng</h3><ul><li><a href="#app">Tổng quan</a></li><li><a href="/app.html?mode=register">Đăng ký</a></li><li><a href="/app.html?mode=login">Đăng nhập</a></li></ul></div>
+        <div class="span-2 footer__col"><h3>Tính năng</h3><ul><li><a href="#features">Tính TDEE</a></li><li><a href="#features">Nhật ký ăn</a></li><li><a href="#features">Lịch tập tuần</a></li></ul></div>
+        <div class="span-2 footer__col"><h3>Hướng dẫn</h3><ul><li><a href="#steps">3 bước bắt đầu</a></li><li><a href="#faq">Hỏi đáp</a></li></ul></div>
+        <div class="span-2 footer__col"><h3>Tài liệu</h3><ul><li><a href="/privacy.html">Quyền riêng tư</a></li><li><a href="/terms.html">Điều khoản</a></li></ul></div>
+      </div>
+      <div class="footer__legal">
+        <span>&copy; 2026 Nhịp Khỏe &nbsp; <a href="/privacy.html">Quyền riêng tư</a> &nbsp; <a href="/terms.html">Điều khoản</a></span>
+        <div class="socials"></div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="/assets/system.js"></script>
+<script type="module" src="/assets/motion/motion.js"></script>
+<script type="module" src="/assets/layout/layout.js"></script>
+</body>
+</html>
