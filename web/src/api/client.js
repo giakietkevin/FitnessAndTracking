@@ -63,6 +63,20 @@ export const api = {
     request(`/admin/food-submissions/${id}/approve`, { method: 'POST', body: payload }),
   rejectFoodSubmission: (id, adminNote) =>
     request(`/admin/food-submissions/${id}/reject`, { method: 'POST', body: { adminNote } }),
+  getAdminOverview: () => request('/admin/overview'),
+  updateAdminFood: (id, payload) => request(`/admin/foods/${id}`, { method: 'PUT', body: payload }),
+  deleteAdminFood: (id) => request(`/admin/foods/${id}`, { method: 'DELETE' }),
+
+  getMyExerciseSubmissions: () => request('/exercise-submissions/mine'),
+  submitExerciseForApproval: (payload) => request('/exercise-submissions', { method: 'POST', body: payload }),
+  getAdminExerciseSubmissions: (status = 'pending') =>
+    request(`/admin/exercise-submissions?status=${encodeURIComponent(status)}`),
+  approveExerciseSubmission: (id, payload) =>
+    request(`/admin/exercise-submissions/${id}/approve`, { method: 'POST', body: payload }),
+  rejectExerciseSubmission: (id, adminNote) =>
+    request(`/admin/exercise-submissions/${id}/reject`, { method: 'POST', body: { adminNote } }),
+  updateAdminExercise: (id, payload) => request(`/admin/exercises/${id}`, { method: 'PUT', body: payload }),
+  deleteAdminExercise: (id) => request(`/admin/exercises/${id}`, { method: 'DELETE' }),
 
   getFoodLogs: (date) => request(`/food-logs?date=${encodeURIComponent(date)}`),
   createFoodLog: (payload) => request('/food-logs', { method: 'POST', body: payload }),

@@ -345,4 +345,52 @@ describe('Nutrition Module (Foods & Daily Food Logs)', () => {
     ).json();
     assert.equal(day27.summary.calories, 620);
   });
+
+  it('provides admin overview and allows admin to update/delete shared foods', async () => {
+    const user = await registerUser(baseUrl, 'norm@example.com', 'Normal User');
+    const adminLogin = await fetch(`${baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'admin@nhipkhoe.local', password: 'admin123' })
+    });
+    const admin = await adminLogin.json();
+
+    // Non-admin blocked
+    const uOv = await fetch(`${baseUrl}/api/admin/overview`, {
+      headers: { Authorization: `Bearer ${user.token}` }
+    });
+    assert.equal(uOv.status, 403);
+
+    const aOv = await fetch(`${baseUrl}/api/admin/overview`, {
+      headers: { Authorization: `Bearer ${admin.token}` }
+    });
+    assert.equal(aOv.status, 200);
+    const ov = await aOv.json();
+    assert.ok(ov.sharedFoodsCount >= 80);
+    assert.ok(ov.sharedExercisesCount >= 15);
+
+    // Find a shared food, edit it, and delete it as admin
+    const { foods } = await (
+      await fetch(`${baseUrl}/api/foods?q=Khoai lang luộc`, {
+        headers: { Authorization: `Bearer ${admin.token}` }
+      })
+    ).json();
+    assert.ok(foods.length >= 1);
+    const target = foods[0];
+
+    const upd = await fetch(`${baseUrl}/api/admin/foods/${target.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${admin.token}` },
+      body: JSON.stringify({ calories: target.calories + 10 })
+    });
+    assert.equal(upd.status, 200);
+    const updBody = await upd.json();
+    assert.equal(updBody.food.calories, target.calories + 10);
+
+    const del = await fetch(`${baseUrl}/api/admin/foods/${target.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${admin.token}` }
+    });
+    assert.equal(del.status, 200);
+  });
 });

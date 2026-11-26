@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { requireAuth } from '../../middleware/auth.js';
-import { NotFoundError, ValidationError } from '../../middleware/errorHandler.js';
+import { requireAdmin, requireAuth } from '../../middleware/auth.js';
+import { ConflictError, NotFoundError, ValidationError } from '../../middleware/errorHandler.js';
 
 const CATEGORIES = new Set(['strength', 'cardio', 'mobility']);
+const SUBMISSION_STATUSES = new Set(['pending', 'approved', 'rejected']);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DEFAULT_MET = { strength: 5.0, cardio: 7.5, mobility: 2.5 };
 
@@ -30,6 +31,55 @@ function mapExercise(row) {
     defaultSets: row.default_sets,
     defaultReps: row.default_reps,
     defaultDurationMin: row.default_duration_min
+  };
+}
+
+function mapExerciseSubmission(row) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    sourceExerciseId: row.source_exercise_id,
+    name: row.name,
+    category: row.category,
+    muscleGroup: row.muscle_group,
+    metValue: row.met_value,
+    defaultSets: row.default_sets,
+    defaultReps: row.default_reps,
+    defaultDurationMin: row.default_duration_min,
+    note: row.note || '',
+    status: row.status,
+    adminNote: row.admin_note || '',
+    reviewedBy: row.reviewed_by,
+    reviewedAt: row.reviewed_at,
+    createdAt: row.created_at,
+    ...(row.submitter_name !== undefined ? { submitterName: row.submitter_name } : {}),
+    ...(row.submitter_email !== undefined ? { submitterEmail: row.submitter_email } : {})
+  };
+}
+
+function validateExercisePayload(raw, fallback = {}) {
+  const name = String(raw?.name ?? fallback.name ?? '').trim();
+  const category = String(raw?.category ?? fallback.category ?? 'strength');
+  const muscleGroup = String(raw?.muscleGroup ?? fallback.muscleGroup ?? 'full_body').trim() || 'full_body';
+  const metValue = Number(raw?.metValue ?? fallback.metValue ?? DEFAULT_MET[category] ?? 5.0);
+  const defaultSets = Math.round(Number(raw?.defaultSets ?? fallback.defaultSets ?? 3));
+  const defaultReps = Math.round(Number(raw?.defaultReps ?? fallback.defaultReps ?? 10));
+  const defaultDurationMin = Math.round(Number(raw?.defaultDurationMin ?? fallback.defaultDurationMin ?? 20));
+
+  if (!name || name.length < 2) throw new ValidationError('Tên bài tập cần ít nhất 2 ký tự.');
+  if (!CATEGORIES.has(category)) throw new ValidationError('Loại bài tập không hợp lệ.');
+  if (!Number.isFinite(metValue) || metValue <= 0 || metValue > 25) {
+    throw new ValidationError('Chỉ số MET phải từ 0.1 đến 25.');
+  }
+
+  return {
+    name,
+    category,
+    muscleGroup,
+    metValue: Number(metValue.toFixed(1)),
+    defaultSets: Math.max(1, defaultSets),
+    defaultReps: Math.max(1, defaultReps),
+    defaultDurationMin: Math.max(1, defaultDurationMin)
   };
 }
 
@@ -122,24 +172,292 @@ export function createWorkoutRouter(db) {
 
   router.post('/exercises', (req, res, next) => {
     try {
-      const name = String(req.body?.name || '').trim();
-      const category = String(req.body?.category || 'strength');
-      const muscleGroup = String(req.body?.muscleGroup || 'full_body').trim();
-      const metValue = Number(req.body?.metValue ?? DEFAULT_MET[category] ?? 5.0);
-      const defaultSets = Number(req.body?.defaultSets ?? 3);
-      const defaultReps = Number(req.body?.defaultReps ?? 10);
-      const defaultDurationMin = Number(req.body?.defaultDurationMin ?? 20);
+      const payload = validateExercisePayload(req.body);
+      const submitForPublic = Boolean(req.body?.submitForPublic);
+      const submissionNote = String(req.body?.submissionNote || req.body?.note || '').trim().slice(0, 400);
 
-      if (!name || name.length < 2) throw new ValidationError('Tên bài tập cần ít nhất 2 ký tự.');
-      if (!CATEGORIES.has(category)) throw new ValidationError('Loại bài tập không hợp lệ.');
+      db.exec('BEGIN');
+      let created;
+      let submission = null;
+      try {
+        const result = db.prepare(`
+          INSERT INTO exercises (user_id, name, category, muscle_group, met_value, default_sets, default_reps, default_duration_min)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          req.user.id,
+          payload.name,
+          payload.category,
+          payload.muscleGroup,
+          payload.metValue,
+          payload.defaultSets,
+          payload.defaultReps,
+          payload.defaultDurationMin
+        );
+        created = db.prepare('SELECT * FROM exercises WHERE id = ?').get(Number(result.lastInsertRowid));
 
-      const result = db.prepare(`
-        INSERT INTO exercises (user_id, name, category, muscle_group, met_value, default_sets, default_reps, default_duration_min)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(req.user.id, name, category, muscleGroup, metValue, defaultSets, defaultReps, defaultDurationMin);
+        if (submitForPublic) {
+          const subRes = db.prepare(`
+            INSERT INTO exercise_submissions (
+              user_id, source_exercise_id, name, category, muscle_group, met_value,
+              default_sets, default_reps, default_duration_min, note
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            req.user.id,
+            created.id,
+            payload.name,
+            payload.category,
+            payload.muscleGroup,
+            payload.metValue,
+            payload.defaultSets,
+            payload.defaultReps,
+            payload.defaultDurationMin,
+            submissionNote
+          );
+          submission = db.prepare('SELECT * FROM exercise_submissions WHERE id = ?').get(Number(subRes.lastInsertRowid));
+        }
+        db.exec('COMMIT');
+      } catch (txErr) {
+        db.exec('ROLLBACK');
+        throw txErr;
+      }
 
-      const created = db.prepare('SELECT * FROM exercises WHERE id = ?').get(Number(result.lastInsertRowid));
-      res.status(201).json({ exercise: mapExercise(created) });
+      res.status(201).json({
+        exercise: mapExercise(created),
+        submission: submission ? mapExerciseSubmission(submission) : null
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/exercise-submissions/mine', (req, res) => {
+    const rows = db
+      .prepare('SELECT * FROM exercise_submissions WHERE user_id = ? ORDER BY id DESC')
+      .all(req.user.id);
+    res.json({ submissions: rows.map(mapExerciseSubmission) });
+  });
+
+  router.post('/exercise-submissions', (req, res, next) => {
+    try {
+      const payload = validateExercisePayload(req.body);
+      const note = String(req.body?.note || '').trim().slice(0, 400);
+      const normName = normalizeText(payload.name);
+      const pendingMine = db
+        .prepare("SELECT name FROM exercise_submissions WHERE user_id = ? AND status = 'pending'")
+        .all(req.user.id);
+      if (pendingMine.some((r) => normalizeText(r.name) === normName)) {
+        throw new ConflictError('Bạn đã gửi một đề xuất bài tập tương tự đang chờ duyệt.');
+      }
+
+      const subRes = db.prepare(`
+        INSERT INTO exercise_submissions (
+          user_id, name, category, muscle_group, met_value,
+          default_sets, default_reps, default_duration_min, note
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        req.user.id,
+        payload.name,
+        payload.category,
+        payload.muscleGroup,
+        payload.metValue,
+        payload.defaultSets,
+        payload.defaultReps,
+        payload.defaultDurationMin,
+        note
+      );
+      const created = db.prepare('SELECT * FROM exercise_submissions WHERE id = ?').get(Number(subRes.lastInsertRowid));
+      res.status(201).json({ submission: mapExerciseSubmission(created) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/admin/exercise-submissions', requireAdmin, (req, res, next) => {
+    try {
+      const status = String(req.query.status || 'pending').trim().toLowerCase();
+      let sql = `
+        SELECT es.*, u.display_name AS submitter_name, u.email AS submitter_email
+        FROM exercise_submissions es
+        JOIN users u ON u.id = es.user_id
+      `;
+      const params = [];
+      if (status && status !== 'all') {
+        if (!SUBMISSION_STATUSES.has(status)) throw new ValidationError('Trạng thái lọc không hợp lệ.');
+        sql += ' WHERE es.status = ?';
+        params.push(status);
+      }
+      sql += " ORDER BY CASE WHEN es.status = 'pending' THEN 0 ELSE 1 END, es.id DESC";
+
+      const rows = db.prepare(sql).all(...params);
+      const countRows = db.prepare('SELECT status, COUNT(*) AS cnt FROM exercise_submissions GROUP BY status').all();
+      const counts = { pending: 0, approved: 0, rejected: 0, all: 0 };
+      for (const r of countRows) {
+        if (counts[r.status] !== undefined) counts[r.status] = r.cnt;
+        counts.all += r.cnt;
+      }
+      res.json({ submissions: rows.map(mapExerciseSubmission), counts });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/admin/exercise-submissions/:id/approve', requireAdmin, (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const existing = db.prepare('SELECT * FROM exercise_submissions WHERE id = ?').get(id);
+      if (!existing) throw new NotFoundError('Không tìm thấy yêu cầu bài tập.');
+      if (existing.status !== 'pending') throw new ConflictError('Yêu cầu này đã được xử lý trước đó.');
+
+      const payload = validateExercisePayload(req.body, {
+        name: existing.name,
+        category: existing.category,
+        muscleGroup: existing.muscle_group,
+        metValue: existing.met_value,
+        defaultSets: existing.default_sets,
+        defaultReps: existing.default_reps,
+        defaultDurationMin: existing.default_duration_min
+      });
+      const adminNote = String(req.body?.adminNote || '').trim().slice(0, 400);
+
+      const normTarget = normalizeText(payload.name);
+      const shared = db.prepare('SELECT id, name FROM exercises WHERE user_id IS NULL').all();
+      if (shared.some((ex) => normalizeText(ex.name) === normTarget)) {
+        throw new ConflictError(`Bài tập "${payload.name}" đã có trong thư viện chung.`);
+      }
+
+      db.exec('BEGIN');
+      let updatedSub;
+      let createdEx;
+      try {
+        const exRes = db.prepare(`
+          INSERT INTO exercises (user_id, name, category, muscle_group, met_value, default_sets, default_reps, default_duration_min)
+          VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          payload.name,
+          payload.category,
+          payload.muscleGroup,
+          payload.metValue,
+          payload.defaultSets,
+          payload.defaultReps,
+          payload.defaultDurationMin
+        );
+
+        db.prepare(`
+          UPDATE exercise_submissions
+          SET name = ?, category = ?, muscle_group = ?, met_value = ?,
+              default_sets = ?, default_reps = ?, default_duration_min = ?,
+              status = 'approved', admin_note = ?, reviewed_by = ?, reviewed_at = datetime('now')
+          WHERE id = ?
+        `).run(
+          payload.name,
+          payload.category,
+          payload.muscleGroup,
+          payload.metValue,
+          payload.defaultSets,
+          payload.defaultReps,
+          payload.defaultDurationMin,
+          adminNote,
+          req.user.id,
+          id
+        );
+
+        updatedSub = db.prepare(`
+          SELECT es.*, u.display_name AS submitter_name, u.email AS submitter_email
+          FROM exercise_submissions es
+          JOIN users u ON u.id = es.user_id
+          WHERE es.id = ?
+        `).get(id);
+        createdEx = db.prepare('SELECT * FROM exercises WHERE id = ?').get(Number(exRes.lastInsertRowid));
+        db.exec('COMMIT');
+      } catch (txErr) {
+        db.exec('ROLLBACK');
+        throw txErr;
+      }
+
+      res.json({ submission: mapExerciseSubmission(updatedSub), exercise: mapExercise(createdEx) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/admin/exercise-submissions/:id/reject', requireAdmin, (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const existing = db.prepare('SELECT * FROM exercise_submissions WHERE id = ?').get(id);
+      if (!existing) throw new NotFoundError('Không tìm thấy yêu cầu bài tập.');
+      if (existing.status !== 'pending') throw new ConflictError('Yêu cầu này đã được xử lý trước đó.');
+
+      const adminNote = String(req.body?.adminNote || '').trim().slice(0, 400);
+      db.prepare(`
+        UPDATE exercise_submissions
+        SET status = 'rejected', admin_note = ?, reviewed_by = ?, reviewed_at = datetime('now')
+        WHERE id = ?
+      `).run(adminNote, req.user.id, id);
+
+      const updatedSub = db.prepare(`
+        SELECT es.*, u.display_name AS submitter_name, u.email AS submitter_email
+        FROM exercise_submissions es
+        JOIN users u ON u.id = es.user_id
+        WHERE es.id = ?
+      `).get(id);
+
+      res.json({ submission: mapExerciseSubmission(updatedSub) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.put('/admin/exercises/:id', requireAdmin, (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const existing = db.prepare('SELECT * FROM exercises WHERE id = ? AND user_id IS NULL').get(id);
+      if (!existing) throw new NotFoundError('Không tìm thấy bài tập trong thư viện chung.');
+
+      const payload = validateExercisePayload(req.body, {
+        name: existing.name,
+        category: existing.category,
+        muscleGroup: existing.muscle_group,
+        metValue: existing.met_value,
+        defaultSets: existing.default_sets,
+        defaultReps: existing.default_reps,
+        defaultDurationMin: existing.default_duration_min
+      });
+
+      const normName = normalizeText(payload.name);
+      const others = db.prepare('SELECT id, name FROM exercises WHERE user_id IS NULL AND id != ?').all(id);
+      if (others.some((ex) => normalizeText(ex.name) === normName)) {
+        throw new ConflictError(`Bài tập "${payload.name}" đã tồn tại trong thư viện chung.`);
+      }
+
+      db.prepare(`
+        UPDATE exercises
+        SET name = ?, category = ?, muscle_group = ?, met_value = ?,
+            default_sets = ?, default_reps = ?, default_duration_min = ?
+        WHERE id = ? AND user_id IS NULL
+      `).run(
+        payload.name,
+        payload.category,
+        payload.muscleGroup,
+        payload.metValue,
+        payload.defaultSets,
+        payload.defaultReps,
+        payload.defaultDurationMin,
+        id
+      );
+
+      const updated = db.prepare('SELECT * FROM exercises WHERE id = ?').get(id);
+      res.json({ exercise: mapExercise(updated) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.delete('/admin/exercises/:id', requireAdmin, (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const del = db.prepare('DELETE FROM exercises WHERE id = ? AND user_id IS NULL').run(id);
+      if (del.changes === 0) throw new NotFoundError('Không tìm thấy bài tập trong thư viện chung.');
+      res.json({ deleted: true });
     } catch (err) {
       next(err);
     }

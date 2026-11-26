@@ -519,6 +519,100 @@ export function createNutritionRouter(db) {
     }
   });
 
+  router.get('/admin/overview', requireAdmin, (_req, res) => {
+    const usersCount = db.prepare('SELECT COUNT(*) AS cnt FROM users').get().cnt;
+    const sharedFoodsCount = db.prepare('SELECT COUNT(*) AS cnt FROM foods WHERE user_id IS NULL').get().cnt;
+    const sharedExercisesCount = db.prepare('SELECT COUNT(*) AS cnt FROM exercises WHERE user_id IS NULL').get().cnt;
+    const pendingFoodSubmissions = db
+      .prepare("SELECT COUNT(*) AS cnt FROM food_submissions WHERE status = 'pending'")
+      .get().cnt;
+    const pendingExerciseSubmissions = db
+      .prepare("SELECT COUNT(*) AS cnt FROM exercise_submissions WHERE status = 'pending'")
+      .get().cnt;
+
+    const cutoff7 = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10);
+    const foodLogsLast7Days = db
+      .prepare('SELECT COUNT(*) AS cnt FROM food_logs WHERE date >= ?')
+      .get(cutoff7).cnt;
+    const workoutLogsLast7Days = db
+      .prepare('SELECT COUNT(*) AS cnt FROM workout_logs WHERE date >= ?')
+      .get(cutoff7).cnt;
+
+    res.json({
+      usersCount,
+      sharedFoodsCount,
+      sharedExercisesCount,
+      pendingFoodSubmissions,
+      pendingExerciseSubmissions,
+      foodLogsLast7Days,
+      workoutLogsLast7Days
+    });
+  });
+
+  router.put('/admin/foods/:id', requireAdmin, (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const existing = db.prepare('SELECT * FROM foods WHERE id = ? AND user_id IS NULL').get(id);
+      if (!existing) {
+        throw new NotFoundError('Không tìm thấy món ăn trong thư viện chung.');
+      }
+
+      const payload = validateFoodPayload(req.body, {
+        name: existing.name,
+        category: existing.category,
+        servingLabel: existing.serving_label,
+        gramsPerServing: existing.grams_per_serving,
+        calories: existing.calories,
+        proteinG: existing.protein_g,
+        carbsG: existing.carbs_g,
+        fatG: existing.fat_g,
+        isNatural: existing.is_natural
+      });
+
+      const normName = normalizeText(payload.name);
+      const others = db.prepare('SELECT id, name FROM foods WHERE user_id IS NULL AND id != ?').all(id);
+      if (others.some((f) => normalizeText(f.name) === normName)) {
+        throw new ConflictError(`Món "${payload.name}" đã tồn tại trong thư viện chung.`);
+      }
+
+      db.prepare(`
+        UPDATE foods
+        SET name = ?, category = ?, serving_label = ?, grams_per_serving = ?,
+            calories = ?, protein_g = ?, carbs_g = ?, fat_g = ?, is_natural = ?
+        WHERE id = ? AND user_id IS NULL
+      `).run(
+        payload.name,
+        payload.category,
+        payload.servingLabel,
+        payload.gramsPerServing,
+        payload.calories,
+        payload.proteinG,
+        payload.carbsG,
+        payload.fatG,
+        payload.isNatural,
+        id
+      );
+
+      const updated = db.prepare('SELECT * FROM foods WHERE id = ?').get(id);
+      res.json({ food: mapFood(updated) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.delete('/admin/foods/:id', requireAdmin, (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const del = db.prepare('DELETE FROM foods WHERE id = ? AND user_id IS NULL').run(id);
+      if (del.changes === 0) {
+        throw new NotFoundError('Không tìm thấy món ăn trong thư viện chung.');
+      }
+      res.json({ deleted: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   router.delete('/foods/:id', (req, res, next) => {
     try {
       const id = Number(req.params.id);

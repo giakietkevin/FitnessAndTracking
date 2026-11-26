@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Check, Dumbbell, Plus, Trash2, X } from 'lucide-react';
+import { Check, Dumbbell, Plus, Send, Trash2, X } from 'lucide-react';
 import { api } from '../api/client.js';
+
+const EX_SUB_STATUS = {
+  pending: { text: 'Chờ Admin duyệt', cls: 'bg-amber-100 text-amber-900' },
+  approved: { text: 'Đã duyệt chung', cls: 'bg-[#2e5b44]/12 text-[#2e5b44]' },
+  rejected: { text: 'Từ chối', cls: 'bg-[#fbe9e7] text-[#9e2a1f]' }
+};
 
 const DAYS = [
   { id: 'Mon', label: 'T2' },
@@ -47,19 +53,36 @@ export default function WorkoutsPage({ selectedDate }) {
     distanceKm: ''
   });
   const [logErr, setLogErr] = useState('');
+  const [exSubmissions, setExSubmissions] = useState([]);
+  const [showExModal, setShowExModal] = useState(false);
+  const [exForm, setExForm] = useState({
+    name: '',
+    category: 'strength',
+    muscleGroup: 'full_body',
+    metValue: 5.5,
+    defaultSets: 3,
+    defaultReps: 10,
+    defaultDurationMin: 20,
+    submitForPublic: true,
+    submissionNote: ''
+  });
+  const [exErr, setExErr] = useState('');
+  const [exNotice, setExNotice] = useState('');
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [pRes, lRes, eRes] = await Promise.all([
+      const [pRes, lRes, eRes, subRes] = await Promise.all([
         api.getWorkoutPlans(),
         api.getWorkoutLogs(selectedDate),
-        api.getExercises()
+        api.getExercises(),
+        api.getMyExerciseSubmissions().catch(() => ({ submissions: [] }))
       ]);
       setPlans(pRes.plans);
       setLogs(lRes.logs);
       setSummary(lRes.summary);
       setExercises(eRes.exercises);
+      setExSubmissions(subRes.submissions || []);
     } finally {
       setLoading(false);
     }
@@ -163,6 +186,45 @@ export default function WorkoutsPage({ selectedDate }) {
     await loadAll();
   }
 
+  async function handleCreateExercise(e) {
+    e.preventDefault();
+    setExErr('');
+    setExNotice('');
+    try {
+      const res = await api.createExercise({
+        name: exForm.name,
+        category: exForm.category,
+        muscleGroup: exForm.muscleGroup,
+        metValue: Number(exForm.metValue),
+        defaultSets: Number(exForm.defaultSets),
+        defaultReps: Number(exForm.defaultReps),
+        defaultDurationMin: Number(exForm.defaultDurationMin),
+        submitForPublic: Boolean(exForm.submitForPublic),
+        submissionNote: exForm.submissionNote
+      });
+      setShowExModal(false);
+      setExForm({
+        name: '',
+        category: 'strength',
+        muscleGroup: 'full_body',
+        metValue: 5.5,
+        defaultSets: 3,
+        defaultReps: 10,
+        defaultDurationMin: 20,
+        submitForPublic: true,
+        submissionNote: ''
+      });
+      await loadAll();
+      setExNotice(
+        res.submission
+          ? `Đã thêm "${res.exercise.name}" và gửi Admin duyệt vào thư viện bài tập chung.`
+          : `Đã thêm bài tập riêng "${res.exercise.name}".`
+      );
+    } catch (err) {
+      setExErr(err.message);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -171,6 +233,10 @@ export default function WorkoutsPage({ selectedDate }) {
           <p className="text-sm text-[#5a5c53]">Tạo lịch tập tuần cho Gym hoặc chạy bộ, hoàn thành cả buổi chỉ với 1 chạm.</p>
         </div>
         <div className="flex flex-wrap gap-2.5">
+          <button type="button" onClick={() => setShowExModal(true)} className="nk-btn-secondary bg-white">
+            <Send className="w-4 h-4" />
+            Đề xuất bài tập
+          </button>
           <button type="button" onClick={() => setShowPlanModal(true)} className="nk-btn-secondary bg-white">
             <Plus className="w-4 h-4" />
             Tạo Plan tuần
@@ -181,6 +247,15 @@ export default function WorkoutsPage({ selectedDate }) {
           </button>
         </div>
       </div>
+
+      {exNotice && (
+        <div className="rounded-xl px-4 py-3 text-sm bg-[#2e5b44]/10 border border-[#2e5b44]/25 text-[#2e5b44] flex items-center justify-between gap-2">
+          <span>{exNotice}</span>
+          <button type="button" onClick={() => setExNotice('')} className="text-xs underline cursor-pointer">
+            Đóng
+          </button>
+        </div>
+      )}
 
       {/* Summary Strip */}
       <div className="nk-card p-5 grid grid-cols-3 gap-4">
@@ -304,6 +379,32 @@ export default function WorkoutsPage({ selectedDate }) {
           </div>
         </section>
       </div>
+
+      {/* User Exercise Submissions Tracking */}
+      {exSubmissions.length > 0 && (
+        <section className="nk-card p-5 space-y-2.5">
+          <h2 className="text-base font-medium">Đề xuất bài tập của bạn</h2>
+          <ul className="divide-y divide-black/8">
+            {exSubmissions.map((sub) => {
+              const badge = EX_SUB_STATUS[sub.status] || EX_SUB_STATUS.pending;
+              return (
+                <li key={sub.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-medium">{sub.name}</div>
+                    <div className="text-xs text-[#5a5c53] font-mono-num">
+                      {CAT_LABELS[sub.category]} · MET {sub.metValue} · {sub.defaultDurationMin} phút
+                    </div>
+                    {sub.adminNote && <div className="text-xs text-[#5a5c53]">Admin: {sub.adminNote}</div>}
+                  </div>
+                  <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full self-start sm:self-center ${badge.cls}`}>
+                    {badge.text}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {/* Create Plan Modal */}
       {showPlanModal && (
@@ -571,6 +672,107 @@ export default function WorkoutsPage({ selectedDate }) {
 
               <button type="submit" className="nk-btn-primary w-full">
                 Lưu buổi tập (tự tính calo)
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Propose / Create Exercise Modal */}
+      {showExModal && (
+        <div className="fixed inset-0 z-50 bg-black/45 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-[#faf7f2] w-full max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[90vh] flex flex-col overflow-hidden border border-black/15 shadow-xl">
+            <div className="px-5 py-4 border-b border-black/10 flex items-center justify-between">
+              <h3 className="text-lg font-medium">Thêm & Đề xuất bài tập mới</h3>
+              <button type="button" onClick={() => setShowExModal(false)} className="p-1.5 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateExercise} className="p-5 overflow-y-auto space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Tên bài tập</label>
+                <input
+                  type="text"
+                  required
+                  value={exForm.name}
+                  onChange={(e) => setExForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="Ví dụ: Đạp xe địa hình / Burpee"
+                  className="nk-input"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Loại bài</label>
+                  <select
+                    value={exForm.category}
+                    onChange={(e) => setExForm((f) => ({ ...f, category: e.target.value }))}
+                    className="nk-input"
+                  >
+                    <option value="strength">Kháng lực / Gym</option>
+                    <option value="cardio">Cardio</option>
+                    <option value="mobility">Giãn cơ</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Nhóm cơ / Vùng</label>
+                  <input
+                    type="text"
+                    value={exForm.muscleGroup}
+                    onChange={(e) => setExForm((f) => ({ ...f, muscleGroup: e.target.value }))}
+                    placeholder="full_body, chest, legs..."
+                    className="nk-input"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Chỉ số MET</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min={1}
+                    max={20}
+                    value={exForm.metValue}
+                    onChange={(e) => setExForm((f) => ({ ...f, metValue: e.target.value }))}
+                    className="nk-input font-mono-num"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Thời lượng gợi ý (phút)</label>
+                  <input
+                    type="number"
+                    min={5}
+                    value={exForm.defaultDurationMin}
+                    onChange={(e) => setExForm((f) => ({ ...f, defaultDurationMin: e.target.value }))}
+                    className="nk-input font-mono-num"
+                  />
+                </div>
+              </div>
+
+              <label className="flex items-start gap-2.5 text-sm pt-2 border-t border-black/8 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={exForm.submitForPublic}
+                  onChange={(e) => setExForm((f) => ({ ...f, submitForPublic: e.target.checked }))}
+                  className="mt-1 accent-[#2e5b44] w-4 h-4"
+                />
+                <span>
+                  <span className="font-medium block">Đề xuất đưa vào thư viện chung (Admin duyệt)</span>
+                  <span className="text-xs text-[#5a5c53]">Giúp mọi người dùng có thêm bài tập này để lập plan.</span>
+                </span>
+              </label>
+
+              {exForm.submitForPublic && (
+                <input
+                  type="text"
+                  value={exForm.submissionNote}
+                  onChange={(e) => setExForm((f) => ({ ...f, submissionNote: e.target.value }))}
+                  placeholder="Ghi chú thêm cho Admin (tuỳ chọn)..."
+                  className="nk-input"
+                />
+              )}
+
+              {exErr && <p className="text-sm text-[#9e2a1f]">{exErr}</p>}
+              <button type="submit" className="nk-btn-primary w-full">
+                Lưu bài tập
               </button>
             </form>
           </div>

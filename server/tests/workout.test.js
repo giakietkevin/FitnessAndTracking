@@ -74,4 +74,68 @@ describe('Workout Module (Exercises, Plans, Logs)', () => {
     });
     assert.equal(bComplete.status, 404);
   });
+
+  it('supports user exercise submissions, admin approval, and shared exercise editing', async () => {
+    const userA = await registerUser(baseUrl, 'exsub@example.com', 'Ex Submitter');
+    const userB = await registerUser(baseUrl, 'exview@example.com', 'Ex Viewer');
+
+    const admin = await (
+      await fetch(`${baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'admin@nhipkhoe.local', password: 'admin123' })
+      })
+    ).json();
+
+    const subRes = await fetch(`${baseUrl}/api/exercises`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${userA.token}` },
+      body: JSON.stringify({
+        name: 'Nhảy dây HIIT tốc độ cao',
+        category: 'cardio',
+        muscleGroup: 'full_body',
+        metValue: 11.0,
+        defaultDurationMin: 15,
+        submitForPublic: true,
+        submissionNote: 'Bài cardio đốt mỡ nhanh'
+      })
+    });
+    assert.equal(subRes.status, 201);
+    const { submission } = await subRes.json();
+    assert.equal(submission.status, 'pending');
+
+    // Non-admin blocked
+    const forbidden = await fetch(`${baseUrl}/api/admin/exercise-submissions`, {
+      headers: { Authorization: `Bearer ${userB.token}` }
+    });
+    assert.equal(forbidden.status, 403);
+
+    // Admin approves with adjusted MET
+    const approveRes = await fetch(`${baseUrl}/api/admin/exercise-submissions/${submission.id}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${admin.token}` },
+      body: JSON.stringify({ metValue: 10.5, adminNote: 'Chuẩn hóa MET' })
+    });
+    assert.equal(approveRes.status, 200);
+    const approveBody = await approveRes.json();
+    assert.equal(approveBody.exercise.isCustom, false);
+    assert.equal(approveBody.exercise.metValue, 10.5);
+
+    // User B sees approved exercise
+    const bSearch = await (
+      await fetch(`${baseUrl}/api/exercises?q=Nhảy dây HIIT`, {
+        headers: { Authorization: `Bearer ${userB.token}` }
+      })
+    ).json();
+    assert.equal(bSearch.exercises.length, 1);
+
+    // Admin updates shared exercise
+    const updRes = await fetch(`${baseUrl}/api/admin/exercises/${approveBody.exercise.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${admin.token}` },
+      body: JSON.stringify({ defaultDurationMin: 20 })
+    });
+    assert.equal(updRes.status, 200);
+    assert.equal((await updRes.json()).exercise.defaultDurationMin, 20);
+  });
 });

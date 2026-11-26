@@ -22,8 +22,10 @@ function WorkspaceRouter() {
       return;
     }
     api
-      .getAdminFoodSubmissions('pending')
-      .then((res) => setPendingAdminCount(res.counts?.pending || 0))
+      .getAdminOverview()
+      .then((res) =>
+        setPendingAdminCount((res.pendingFoodSubmissions || 0) + (res.pendingExerciseSubmissions || 0))
+      )
       .catch(() => {});
   }, [isAuthenticated, user?.role]);
 

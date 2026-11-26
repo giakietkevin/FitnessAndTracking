@@ -173,10 +173,30 @@ CREATE TABLE IF NOT EXISTS meal_combo_items (
   fat_g REAL NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS exercise_submissions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  source_exercise_id INTEGER REFERENCES exercises(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL CHECK (category IN ('strength', 'cardio', 'mobility')),
+  muscle_group TEXT NOT NULL DEFAULT 'full_body',
+  met_value REAL NOT NULL DEFAULT 5.0,
+  default_sets INTEGER DEFAULT 3,
+  default_reps INTEGER DEFAULT 10,
+  default_duration_min INTEGER DEFAULT 20,
+  note TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  admin_note TEXT NOT NULL DEFAULT '',
+  reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_food_logs_user_date ON food_logs(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_workout_logs_user_date ON workout_logs(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_weight_logs_user_date ON weight_logs(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_food_submissions_status ON food_submissions(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_exercise_submissions_status ON exercise_submissions(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_water_logs_user_date ON water_logs(user_id, date);
 `;
 
