@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+:root {
+  --p-bg: #efe9e0;
+  --p-surface: #e2d9cb;
+  --p-card: #faf7f2;
+  --p-ink: #22261f;
+  --p-muted: #5a5c53;
+  --p-line: rgba(34, 38, 31, 0.12);
+  --p-accent: #2e5b44;
+  --p-accent-ink: #ffffff;
+  --p-inv-bg: #22261f;
+  --p-inv-ink: #efe9e0;
+  --font-display: "Instrument Sans", system-ui, sans-serif;
+  --font-text: "Instrument Sans", system-ui, sans-serif;
+  --font-mono: "DM Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background-color: var(--p-bg);
+  color: var(--p-ink);
+  font-family: var(--font-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-mono-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.nk-card {
+  background: var(--p-card);
+  border: 1px solid var(--p-line);
+  border-radius: 18px;
+}
+
+.nk-surface {
+  background: var(--p-surface);
+  border: 1px solid var(--p-line);
+  border-radius: 16px;
+}
+
+.nk-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  background: #ffffff;
+  color: var(--p-ink);
+  border: 1px solid rgba(34, 38, 31, 0.18);
+  border-radius: 12px;
+  font-size: 15px;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.nk-input:focus {
+  outline: none;
+  border-color: var(--p-accent);
+  box-shadow: 0 0 0 3px rgba(46, 91, 68, 0.15);
+}
+
+.nk-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 20px;
+  background: var(--p-accent);
+  color: var(--p-accent-ink);
+  border-radius: 12px;
+  font-weight: 500;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background-color 140ms ease, transform 100ms ease;
+}
+
+.nk-btn-primary:hover {
+  background: #254a37;
+}
+
+.nk-btn-primary:active {
+  transform: scale(0.99);
+}
+
+.nk-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.nk-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  background: transparent;
+  color: var(--p-ink);
+  border: 1px solid rgba(34, 38, 31, 0.22);
+  border-radius: 12px;
+  font-weight: 500;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+
+.nk-btn-secondary:hover {
+  background: rgba(34, 38, 31, 0.05);
+}
