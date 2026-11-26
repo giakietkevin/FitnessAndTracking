@@ -51,6 +51,15 @@ export const api = {
   createFood: (payload) => request('/foods', { method: 'POST', body: payload }),
   deleteFood: (id) => request(`/foods/${id}`, { method: 'DELETE' }),
 
+  getMyFoodSubmissions: () => request('/food-submissions/mine'),
+  submitFoodForApproval: (payload) => request('/food-submissions', { method: 'POST', body: payload }),
+  getAdminFoodSubmissions: (status = 'pending') =>
+    request(`/admin/food-submissions?status=${encodeURIComponent(status)}`),
+  approveFoodSubmission: (id, payload) =>
+    request(`/admin/food-submissions/${id}/approve`, { method: 'POST', body: payload }),
+  rejectFoodSubmission: (id, adminNote) =>
+    request(`/admin/food-submissions/${id}/reject`, { method: 'POST', body: { adminNote } }),
+
   getFoodLogs: (date) => request(`/food-logs?date=${encodeURIComponent(date)}`),
   createFoodLog: (payload) => request('/food-logs', { method: 'POST', body: payload }),
   deleteFoodLog: (id) => request(`/food-logs/${id}`, { method: 'DELETE' }),

@@ -138,6 +138,26 @@ export default function AuthPage() {
               {submitting ? 'Đang xử lý...' : mode === 'register' ? 'Tạo tài khoản và tiếp tục' : 'Đăng nhập'}
               <ArrowRight className="w-4 h-4" />
             </button>
+
+            {mode === 'login' && (
+              <div className="pt-3 border-t border-black/8 flex items-center justify-between gap-2 text-xs text-[#5a5c53]">
+                <div>
+                  <div>Quản trị viên mặc định:</div>
+                  <div className="font-mono-num text-[#22261f]">admin@nhipkhoe.local / admin123</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('admin@nhipkhoe.local');
+                    setPassword('admin123');
+                    setError('');
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg bg-[#efe9e0] text-[#2e5b44] font-medium hover:bg-[#e2d9cb] shrink-0 cursor-pointer"
+                >
+                  Điền Admin
+                </button>
+              </div>
+            )}
           </form>
         </div>
       </main>

@@ -1,11 +1,11 @@
-import { Activity, ChevronLeft, ChevronRight, Dumbbell, Flame, LogOut, User, Utensils } from 'lucide-react';
+import { Activity, ChevronLeft, ChevronRight, Dumbbell, Flame, LogOut, ShieldCheck, User, Utensils } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 
-const NAV_ITEMS = [
-  { id: 'dashboard', label: 'Tổng quan', icon: Flame },
-  { id: 'nutrition', label: 'Dinh dưỡng', icon: Utensils },
-  { id: 'workouts', label: 'Tập luyện', icon: Dumbbell },
-  { id: 'profile', label: 'Hồ sơ', icon: User }
+const BASE_NAV_ITEMS = [
+  { id: 'dashboard', label: 'Tổng quan', shortLabel: 'Tổng quan', icon: Flame },
+  { id: 'nutrition', label: 'Dinh dưỡng', shortLabel: 'Dinh dưỡng', icon: Utensils },
+  { id: 'workouts', label: 'Tập luyện', shortLabel: 'Tập luyện', icon: Dumbbell },
+  { id: 'profile', label: 'Hồ sơ', shortLabel: 'Hồ sơ', icon: User }
 ];
 
 function shiftDate(iso, delta) {
@@ -21,8 +21,28 @@ function formatViDate(iso) {
   return `${d}/${m}/${y}`;
 }
 
-export default function AppShell({ activeTab, onTabChange, selectedDate, onDateChange, children }) {
+export default function AppShell({
+  activeTab,
+  onTabChange,
+  selectedDate,
+  onDateChange,
+  pendingAdminCount = 0,
+  children
+}) {
   const { user, logout } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const navItems = isAdmin
+    ? [
+        ...BASE_NAV_ITEMS,
+        {
+          id: 'admin',
+          label: 'Admin duyệt món',
+          shortLabel: 'Duyệt món',
+          icon: ShieldCheck,
+          badge: pendingAdminCount
+        }
+      ]
+    : BASE_NAV_ITEMS;
 
   return (
     <div className="min-h-screen flex flex-col pb-20 md:pb-10">
@@ -44,7 +64,7 @@ export default function AppShell({ activeTab, onTabChange, selectedDate, onDateC
             </button>
 
             <nav className="hidden md:flex items-center gap-1" aria-label="Chức năng chính">
-              {NAV_ITEMS.map((item) => {
+              {navItems.map((item) => {
                 const Icon = item.icon;
                 const active = activeTab === item.id;
                 return (
@@ -59,7 +79,16 @@ export default function AppShell({ activeTab, onTabChange, selectedDate, onDateC
                     }`}
                   >
                     <Icon className="w-4 h-4" />
-                    {item.label}
+                    <span>{item.label}</span>
+                    {item.badge > 0 && (
+                      <span
+                        className={`text-[11px] font-mono-num px-1.5 py-0.5 rounded-full ${
+                          active ? 'bg-[#efe9e0] text-[#22261f]' : 'bg-[#2e5b44] text-white'
+                        }`}
+                      >
+                        {item.badge}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -123,10 +152,12 @@ export default function AppShell({ activeTab, onTabChange, selectedDate, onDateC
       </main>
 
       <nav
-        className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-[#faf7f2] border-t border-black/12 grid grid-cols-4 h-16 px-2"
+        className={`md:hidden fixed bottom-0 inset-x-0 z-30 bg-[#faf7f2] border-t border-black/12 grid ${
+          isAdmin ? 'grid-cols-5' : 'grid-cols-4'
+        } h-16 px-2`}
         aria-label="Điều hướng di động"
       >
-        {NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const Icon = item.icon;
           const active = activeTab === item.id;
           return (
@@ -134,12 +165,17 @@ export default function AppShell({ activeTab, onTabChange, selectedDate, onDateC
               key={item.id}
               type="button"
               onClick={() => onTabChange(item.id)}
-              className={`flex flex-col items-center justify-center gap-1 text-[11px] font-medium cursor-pointer ${
+              className={`relative flex flex-col items-center justify-center gap-1 text-[11px] font-medium cursor-pointer ${
                 active ? 'text-[#2e5b44]' : 'text-[#5a5c53]'
               }`}
             >
               <Icon className="w-5 h-5" />
-              <span>{item.label}</span>
+              <span>{item.shortLabel || item.label}</span>
+              {item.badge > 0 && (
+                <span className="absolute top-1.5 right-3 min-w-4 h-4 px-1 rounded-full bg-[#2e5b44] text-white text-[10px] font-mono-num flex items-center justify-center">
+                  {item.badge}
+                </span>
+              )}
             </button>
           );
         })}

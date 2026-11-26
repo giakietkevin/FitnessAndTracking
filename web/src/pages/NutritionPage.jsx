@@ -1,6 +1,25 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, Search, Trash2, Utensils, X } from 'lucide-react';
+import { Plus, Search, Send, Trash2, Utensils, X } from 'lucide-react';
 import { api } from '../api/client.js';
+
+const EMPTY_CUSTOM_FOOD = {
+  name: '',
+  category: 'meal',
+  servingLabel: '1 phần',
+  gramsPerServing: '100',
+  calories: '',
+  proteinG: '',
+  carbsG: '',
+  fatG: '',
+  submitForPublic: false,
+  submissionNote: ''
+};
+
+const SUBMISSION_STATUS_MAP = {
+  pending: { text: 'Chờ Admin duyệt', cls: 'bg-amber-100 text-amber-900' },
+  approved: { text: 'Đã duyệt vào thư viện chung', cls: 'bg-[#2e5b44]/12 text-[#2e5b44]' },
+  rejected: { text: 'Từ chối', cls: 'bg-[#fbe9e7] text-[#9e2a1f]' }
+};
 
 const MEALS = [
   { id: 'breakfast', label: 'Bữa sáng', hint: 'Nạp năng lượng đầu ngày' },
@@ -32,24 +51,23 @@ export default function NutritionPage({ selectedDate }) {
   const [foods, setFoods] = useState([]);
   const [servingsMap, setServingsMap] = useState({});
   const [busyId, setBusyId] = useState(null);
+  const [submissions, setSubmissions] = useState([]);
+  const [notice, setNotice] = useState('');
+  const [submittingFoodId, setSubmittingFoodId] = useState(null);
 
-  const [customFood, setCustomFood] = useState({
-    name: '',
-    category: 'meal',
-    servingLabel: '1 phần',
-    calories: '',
-    proteinG: '',
-    carbsG: '',
-    fatG: ''
-  });
+  const [customFood, setCustomFood] = useState(EMPTY_CUSTOM_FOOD);
   const [customErr, setCustomErr] = useState('');
 
   const loadLogs = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.getFoodLogs(selectedDate);
-      setLogs(res.logs);
-      setSummary(res.summary);
+      const [logsRes, subRes] = await Promise.all([
+        api.getFoodLogs(selectedDate),
+        api.getMyFoodSubmissions().catch(() => ({ submissions: [] }))
+      ]);
+      setLogs(logsRes.logs);
+      setSummary(logsRes.summary);
+      setSubmissions(subRes.submissions || []);
     } finally {
       setLoading(false);
     }
@@ -95,13 +113,19 @@ export default function NutritionPage({ selectedDate }) {
   async function handleCreateCustomFood(e) {
     e.preventDefault();
     setCustomErr('');
+    setNotice('');
     try {
-      const { food } = await api.createFood({
-        ...customFood,
+      const { food, submission } = await api.createFood({
+        name: customFood.name,
+        category: customFood.category,
+        servingLabel: customFood.servingLabel,
+        gramsPerServing: Number(customFood.gramsPerServing || 100),
         calories: Number(customFood.calories),
         proteinG: Number(customFood.proteinG || 0),
         carbsG: Number(customFood.carbsG || 0),
-        fatG: Number(customFood.fatG || 0)
+        fatG: Number(customFood.fatG || 0),
+        submitForPublic: Boolean(customFood.submitForPublic),
+        submissionNote: customFood.submissionNote
       });
       await api.createFoodLog({
         date: selectedDate,
@@ -109,11 +133,29 @@ export default function NutritionPage({ selectedDate }) {
         foodId: food.id,
         servings: 1
       });
-      setCustomFood({ name: '', category: 'meal', servingLabel: '1 phần', calories: '', proteinG: '', carbsG: '', fatG: '' });
+      if (submission) {
+        setNotice(`Đã ghi "${food.name}" vào nhật ký và gửi yêu cầu Admin duyệt đưa vào thư viện chung.`);
+      }
+      setCustomFood(EMPTY_CUSTOM_FOOD);
       await loadLogs();
       setModalMeal(null);
     } catch (err) {
       setCustomErr(err.message);
+    }
+  }
+
+  async function handleSubmitExistingFood(food) {
+    setSubmittingFoodId(food.id);
+    setNotice('');
+    try {
+      await api.submitFoodForApproval({ sourceFoodId: food.id });
+      const subRes = await api.getMyFoodSubmissions();
+      setSubmissions(subRes.submissions || []);
+      setNotice(`Đã gửi "${food.name}" cho Admin xem xét duyệt vào thư viện chung.`);
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setSubmittingFoodId(null);
     }
   }
 
@@ -133,6 +175,18 @@ export default function NutritionPage({ selectedDate }) {
           Thêm món nhanh
         </button>
       </div>
+
+      {notice && (
+        <div
+          role="status"
+          className="rounded-xl px-4 py-3 text-sm bg-[#2e5b44]/10 border border-[#2e5b44]/25 text-[#2e5b44] flex items-center justify-between gap-3"
+        >
+          <span>{notice}</span>
+          <button type="button" onClick={() => setNotice('')} className="text-xs underline cursor-pointer shrink-0">
+            Đóng
+          </button>
+        </div>
+      )}
 
       {/* Daily Summary Strip */}
       <div className="nk-card p-5 grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -222,6 +276,54 @@ export default function NutritionPage({ selectedDate }) {
           })}
         </div>
       )}
+
+      {/* User Food Submissions Tracking Card */}
+      <section className="nk-card p-5 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-medium">Đề xuất món ăn Việt vào thư viện chung</h2>
+            <p className="text-xs text-[#5a5c53]">
+              Thiếu món quen thuộc? Bạn có thể tạo món mới và gửi Admin duyệt để mọi người cùng dùng.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setCustomFood({ ...EMPTY_CUSTOM_FOOD, submitForPublic: true });
+              setModalMeal('lunch');
+              setModalTab('custom');
+            }}
+            className="nk-btn-secondary self-start sm:self-auto"
+          >
+            <Send className="w-4 h-4" />
+            Đề xuất món mới
+          </button>
+        </div>
+
+        {submissions.length > 0 && (
+          <ul className="divide-y divide-black/8 pt-1">
+            {submissions.map((sub) => {
+              const badge = SUBMISSION_STATUS_MAP[sub.status] || SUBMISSION_STATUS_MAP.pending;
+              return (
+                <li key={sub.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-medium">{sub.name}</div>
+                    <div className="text-xs text-[#5a5c53] font-mono-num">
+                      {sub.servingLabel} · {sub.calories} kcal · {sub.proteinG}g P · {sub.carbsG}g C · {sub.fatG}g F
+                    </div>
+                    {sub.adminNote && (
+                      <div className="text-xs text-[#5a5c53] mt-0.5">Phản hồi Admin: {sub.adminNote}</div>
+                    )}
+                  </div>
+                  <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full self-start sm:self-center ${badge.cls}`}>
+                    {badge.text}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       {/* Quick Food Logger Modal (<= 3 clicks!) */}
       {modalMeal && (
@@ -313,14 +415,36 @@ export default function NutritionPage({ selectedDate }) {
                   ) : (
                     foods.map((food) => {
                       const servings = servingsMap[food.id] ?? 1;
+                      const linkedSub = food.isCustom
+                        ? submissions.find((s) => s.sourceFoodId === food.id)
+                        : null;
                       return (
                         <li key={food.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="text-sm font-medium flex items-center gap-2">
+                            <div className="text-sm font-medium flex flex-wrap items-center gap-2">
                               <span>{food.name}</span>
                               {food.isCustom && (
                                 <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#2e5b44]/12 text-[#2e5b44]">
                                   Tự tạo
+                                </span>
+                              )}
+                              {food.isCustom && !linkedSub && (
+                                <button
+                                  type="button"
+                                  disabled={submittingFoodId === food.id}
+                                  onClick={() => handleSubmitExistingFood(food)}
+                                  className="text-[11px] px-2 py-0.5 rounded-full bg-[#efe9e0] text-[#22261f] hover:bg-[#e2d9cb] cursor-pointer"
+                                >
+                                  {submittingFoodId === food.id ? 'Đang gửi...' : 'Gửi duyệt chung'}
+                                </button>
+                              )}
+                              {linkedSub && (
+                                <span
+                                  className={`text-[11px] px-2 py-0.5 rounded-full ${
+                                    (SUBMISSION_STATUS_MAP[linkedSub.status] || SUBMISSION_STATUS_MAP.pending).cls
+                                  }`}
+                                >
+                                  {(SUBMISSION_STATUS_MAP[linkedSub.status] || SUBMISSION_STATUS_MAP.pending).text}
                                 </span>
                               )}
                             </div>
@@ -369,6 +493,18 @@ export default function NutritionPage({ selectedDate }) {
                     />
                   </div>
                   <div>
+                    <label className="block text-sm font-medium mb-1">Nhóm món</label>
+                    <select
+                      value={customFood.category}
+                      onChange={(e) => setCustomFood((f) => ({ ...f, category: e.target.value }))}
+                      className="nk-input"
+                    >
+                      {CATEGORIES.filter((c) => c.id !== 'all').map((c) => (
+                        <option key={c.id} value={c.id}>{c.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium mb-1">Đơn vị khẩu phần</label>
                     <input
                       type="text"
@@ -376,6 +512,16 @@ export default function NutritionPage({ selectedDate }) {
                       onChange={(e) => setCustomFood((f) => ({ ...f, servingLabel: e.target.value }))}
                       placeholder="1 tô / 100g"
                       className="nk-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Khối lượng (g/ml)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={customFood.gramsPerServing}
+                      onChange={(e) => setCustomFood((f) => ({ ...f, gramsPerServing: e.target.value }))}
+                      className="nk-input font-mono-num"
                     />
                   </div>
                   <div>
@@ -421,6 +567,31 @@ export default function NutritionPage({ selectedDate }) {
                       onChange={(e) => setCustomFood((f) => ({ ...f, fatG: e.target.value }))}
                       className="nk-input font-mono-num"
                     />
+                  </div>
+                  <div className="sm:col-span-2 pt-2 border-t border-black/8 space-y-2.5">
+                    <label className="flex items-start gap-2.5 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={customFood.submitForPublic}
+                        onChange={(e) => setCustomFood((f) => ({ ...f, submitForPublic: e.target.checked }))}
+                        className="mt-1 accent-[#2e5b44] w-4 h-4"
+                      />
+                      <span>
+                        <span className="font-medium block">Đề xuất đưa vào thư viện chung (Admin duyệt)</span>
+                        <span className="text-xs text-[#5a5c53]">
+                          Yêu cầu sẽ gửi sang trang Admin để kiểm tra calo và thêm cho tất cả người dùng.
+                        </span>
+                      </span>
+                    </label>
+                    {customFood.submitForPublic && (
+                      <input
+                        type="text"
+                        value={customFood.submissionNote}
+                        onChange={(e) => setCustomFood((f) => ({ ...f, submissionNote: e.target.value }))}
+                        placeholder="Ghi chú cho Admin (ví dụ: món miền Trung, khẩu phần 1 tô vừa)..."
+                        className="nk-input"
+                      />
+                    )}
                   </div>
                 </div>
 
