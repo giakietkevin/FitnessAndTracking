@@ -5,6 +5,7 @@ import AuthPage from './pages/AuthPage.jsx';
 import OnboardingPage from './pages/OnboardingPage.jsx';
 import AppShell from './components/AppShell.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
+import RoadmapPage from './pages/RoadmapPage.jsx';
 import NutritionPage from './pages/NutritionPage.jsx';
 import WorkoutsPage from './pages/WorkoutsPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
@@ -55,6 +56,9 @@ function WorkspaceRouter() {
     >
       {activeTab === 'dashboard' && (
         <DashboardPage selectedDate={selectedDate} onNavigate={setActiveTab} />
+      )}
+      {activeTab === 'roadmap' && (
+        <RoadmapPage selectedDate={selectedDate} onNavigate={setActiveTab} />
       )}
       {activeTab === 'nutrition' && <NutritionPage selectedDate={selectedDate} />}
       {activeTab === 'workouts' && <WorkoutsPage selectedDate={selectedDate} />}

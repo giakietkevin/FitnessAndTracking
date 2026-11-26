@@ -116,6 +116,9 @@ export const api = {
   logWeight: (payload) => request('/tracking/weights', { method: 'POST', body: payload }),
   deleteWeight: (id) => request(`/tracking/weights/${id}`, { method: 'DELETE' }),
   getDashboard: (date, days = 7) => request(`/tracking/dashboard?date=${encodeURIComponent(date)}&days=${days}`),
+  getRoadmap: () => request('/tracking/roadmap'),
+  designRoadmap: (payload) => request('/tracking/roadmap/design', { method: 'POST', body: payload }),
+  applyRoadmap: (payload) => request('/tracking/roadmap/apply', { method: 'POST', body: payload }),
   downloadExport: async (format = 'csv') => {
     const token = getStoredToken();
     const res = await fetch(`/api/tracking/export?format=${encodeURIComponent(format)}`, {

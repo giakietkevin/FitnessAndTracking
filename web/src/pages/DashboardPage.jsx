@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Droplets, Dumbbell, Flame, Plus, Scale, Utensils } from 'lucide-react';
+import { Droplets, Dumbbell, Flame, Plus, Scale, Sparkles, Utensils } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -104,6 +104,10 @@ export default function DashboardPage({ selectedDate, onNavigate }) {
           </h1>
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
+          <button type="button" onClick={() => onNavigate('roadmap')} className="nk-btn-secondary bg-white">
+            <Sparkles className="w-4 h-4 text-[#2e5b44]" />
+            Thiết kế lộ trình
+          </button>
           <button type="button" onClick={() => onNavigate('nutrition')} className="nk-btn-primary">
             <Plus className="w-4 h-4" />
             Ghi bữa ăn

@@ -1,8 +1,9 @@
-import { Activity, ChevronLeft, ChevronRight, Dumbbell, Flame, LogOut, ShieldCheck, User, Utensils } from 'lucide-react';
+import { Activity, ChevronLeft, ChevronRight, Compass, Dumbbell, Flame, LogOut, ShieldCheck, User, Utensils } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 
 const BASE_NAV_ITEMS = [
   { id: 'dashboard', label: 'Tổng quan', shortLabel: 'Tổng quan', icon: Flame },
+  { id: 'roadmap', label: 'Lộ trình', shortLabel: 'Lộ trình', icon: Compass },
   { id: 'nutrition', label: 'Dinh dưỡng', shortLabel: 'Dinh dưỡng', icon: Utensils },
   { id: 'workouts', label: 'Tập luyện', shortLabel: 'Tập luyện', icon: Dumbbell },
   { id: 'profile', label: 'Hồ sơ', shortLabel: 'Hồ sơ', icon: User }
@@ -152,9 +153,7 @@ export default function AppShell({
       </main>
 
       <nav
-        className={`md:hidden fixed bottom-0 inset-x-0 z-30 bg-[#faf7f2] border-t border-black/12 grid ${
-          isAdmin ? 'grid-cols-5' : 'grid-cols-4'
-        } h-16 px-2`}
+        className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-[#faf7f2] border-t border-black/12 flex items-stretch justify-around h-16 px-1"
         aria-label="Điều hướng di động"
       >
         {navItems.map((item) => {
@@ -165,7 +164,7 @@ export default function AppShell({
               key={item.id}
               type="button"
               onClick={() => onTabChange(item.id)}
-              className={`relative flex flex-col items-center justify-center gap-1 text-[11px] font-medium cursor-pointer ${
+              className={`relative flex-1 flex flex-col items-center justify-center gap-1 text-[10px] font-medium cursor-pointer ${
                 active ? 'text-[#2e5b44]' : 'text-[#5a5c53]'
               }`}
             >
