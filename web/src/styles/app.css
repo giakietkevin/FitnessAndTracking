@@ -34,82 +34,84 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.nk-card {
-  background: var(--p-card);
-  border: 1px solid var(--p-line);
-  border-radius: 18px;
-}
+@layer components {
+  .nk-card {
+    background: var(--p-card);
+    border: 1px solid var(--p-line);
+    border-radius: 18px;
+  }
 
-.nk-surface {
-  background: var(--p-surface);
-  border: 1px solid var(--p-line);
-  border-radius: 16px;
-}
+  .nk-surface {
+    background: var(--p-surface);
+    border: 1px solid var(--p-line);
+    border-radius: 16px;
+  }
 
-.nk-input {
-  width: 100%;
-  min-height: 44px;
-  padding: 0 14px;
-  background: #ffffff;
-  color: var(--p-ink);
-  border: 1px solid rgba(34, 38, 31, 0.18);
-  border-radius: 12px;
-  font-size: 15px;
-  transition: border-color 140ms ease, box-shadow 140ms ease;
-}
+  .nk-input {
+    width: 100%;
+    min-height: 44px;
+    padding: 0 14px;
+    background: #ffffff;
+    color: var(--p-ink);
+    border: 1px solid rgba(34, 38, 31, 0.18);
+    border-radius: 12px;
+    font-size: 15px;
+    transition: border-color 140ms ease, box-shadow 140ms ease;
+  }
 
-.nk-input:focus {
-  outline: none;
-  border-color: var(--p-accent);
-  box-shadow: 0 0 0 3px rgba(46, 91, 68, 0.15);
-}
+  .nk-input:focus {
+    outline: none;
+    border-color: var(--p-accent);
+    box-shadow: 0 0 0 3px rgba(46, 91, 68, 0.15);
+  }
 
-.nk-btn-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 0 20px;
-  background: var(--p-accent);
-  color: var(--p-accent-ink);
-  border-radius: 12px;
-  font-weight: 500;
-  font-size: 15px;
-  cursor: pointer;
-  transition: background-color 140ms ease, transform 100ms ease;
-}
+  .nk-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 20px;
+    background: var(--p-accent);
+    color: var(--p-accent-ink);
+    border-radius: 12px;
+    font-weight: 500;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background-color 140ms ease, transform 100ms ease;
+  }
 
-.nk-btn-primary:hover {
-  background: #254a37;
-}
+  .nk-btn-primary:hover {
+    background: #254a37;
+  }
 
-.nk-btn-primary:active {
-  transform: scale(0.99);
-}
+  .nk-btn-primary:active {
+    transform: scale(0.99);
+  }
 
-.nk-btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+  .nk-btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 
-.nk-btn-secondary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 0 18px;
-  background: transparent;
-  color: var(--p-ink);
-  border: 1px solid rgba(34, 38, 31, 0.22);
-  border-radius: 12px;
-  font-weight: 500;
-  font-size: 15px;
-  cursor: pointer;
-  transition: background-color 140ms ease;
-}
+  .nk-btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 18px;
+    background: transparent;
+    color: var(--p-ink);
+    border: 1px solid rgba(34, 38, 31, 0.22);
+    border-radius: 12px;
+    font-weight: 500;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background-color 140ms ease;
+  }
 
-.nk-btn-secondary:hover {
-  background: rgba(34, 38, 31, 0.05);
+  .nk-btn-secondary:hover {
+    background: rgba(34, 38, 31, 0.05);
+  }
 }

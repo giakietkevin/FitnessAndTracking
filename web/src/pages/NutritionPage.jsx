@@ -175,6 +175,19 @@ export default function NutritionPage({ selectedDate }) {
     }
   }
 
+  async function handleDeleteCustomFood(food) {
+    setBusyId(food.id);
+    try {
+      await api.deleteFood(food.id);
+      await Promise.all([loadFoods(), loadLogs()]);
+      setNotice(`Đã xóa món tự tạo "${food.name}".`);
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function handleAddWater(amountMl) {
     const val = Number(amountMl);
     if (!Number.isFinite(val) || val < 50) return;
@@ -645,15 +658,26 @@ export default function NutritionPage({ selectedDate }) {
             {modalTab === 'search' ? (
               <div className="p-5 flex-1 overflow-y-auto space-y-4">
                 <div className="relative">
-                  <Search className="w-4 h-4 text-[#5a5c53] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Search className="w-4 h-4 text-[#5a5c53] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Tìm món ăn (ví dụ: uc ga, pho bo, com, trung)..."
-                    className="nk-input pl-10"
+                    spellCheck={false}
+                    className="nk-input pl-10 pr-10"
                     autoFocus
                   />
+                  {query && (
+                    <button
+                      type="button"
+                      aria-label="Xóa từ khóa tìm kiếm"
+                      onClick={() => setQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-[#5a5c53] hover:text-[#22261f] hover:bg-black/5 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex gap-1.5 overflow-x-auto pb-1">
@@ -737,6 +761,17 @@ export default function NutritionPage({ selectedDate }) {
                             >
                               {busyId === food.id ? '...' : `+ ${Math.round(food.calories * servings)} kcal`}
                             </button>
+                            {food.isCustom && (
+                              <button
+                                type="button"
+                                aria-label={`Xóa món tự tạo ${food.name}`}
+                                disabled={busyId === food.id}
+                                onClick={() => handleDeleteCustomFood(food)}
+                                className="p-2 rounded-lg text-[#5a5c53] hover:text-[#9e2a1f] hover:bg-[#fbe9e7] cursor-pointer"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </li>
                       );

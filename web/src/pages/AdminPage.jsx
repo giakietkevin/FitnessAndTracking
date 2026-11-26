@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Check, Dumbbell, RefreshCw, Save, Search, ShieldCheck, Trash2, Utensils, XCircle } from 'lucide-react';
+import { Check, Dumbbell, RefreshCw, Save, Search, ShieldCheck, Trash2, Utensils, X, XCircle } from 'lucide-react';
 import { api } from '../api/client.js';
 
 const FOOD_CATEGORIES = [
@@ -560,14 +560,25 @@ export default function AdminPage({ onPendingCountChange }) {
               </button>
             </div>
             <div className="relative flex-1 max-w-sm">
-              <Search className="w-4 h-4 text-[#5a5c53] absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-[#5a5c53] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 value={catalogQuery}
                 onChange={(e) => setCatalogQuery(e.target.value)}
                 placeholder="Tìm trong thư viện chung..."
-                className="nk-input pl-10"
+                spellCheck={false}
+                className="nk-input pl-10 pr-10"
               />
+              {catalogQuery && (
+                <button
+                  type="button"
+                  aria-label="Xóa từ khóa tìm kiếm"
+                  onClick={() => setCatalogQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-[#5a5c53] hover:text-[#22261f] hover:bg-black/5 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
 
