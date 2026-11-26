@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { KeyRound, LogOut, Trash2 } from 'lucide-react';
+import { Download, KeyRound, LogOut, Trash2 } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -313,6 +313,25 @@ export default function ProfilePage() {
           {pwdSaving ? 'Đang cập nhật...' : 'Đổi mật khẩu'}
         </button>
       </form>
+
+      <div className="nk-card p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-base font-medium">Xuất & sao lưu dữ liệu cá nhân</h2>
+          <p className="text-xs text-[#5a5c53]">
+            Tải toàn bộ lịch sử bữa ăn, buổi tập, cân nặng và lượng nước uống về máy của bạn.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => api.downloadExport('csv')} className="nk-btn-secondary bg-white">
+            <Download className="w-4 h-4" />
+            Tải CSV (Excel)
+          </button>
+          <button type="button" onClick={() => api.downloadExport('json')} className="nk-btn-secondary bg-white">
+            <Download className="w-4 h-4" />
+            Tải JSON
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Check, Dumbbell, Plus, Send, Trash2, X } from 'lucide-react';
+import { Check, Dumbbell, Plus, Send, Sparkles, Trash2, X } from 'lucide-react';
 import { api } from '../api/client.js';
 
 const EX_SUB_STATUS = {
@@ -54,6 +54,9 @@ export default function WorkoutsPage({ selectedDate }) {
   });
   const [logErr, setLogErr] = useState('');
   const [exSubmissions, setExSubmissions] = useState([]);
+  const [templates, setTemplates] = useState([]);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [adoptingId, setAdoptingId] = useState(null);
   const [showExModal, setShowExModal] = useState(false);
   const [exForm, setExForm] = useState({
     name: '',
@@ -72,17 +75,19 @@ export default function WorkoutsPage({ selectedDate }) {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [pRes, lRes, eRes, subRes] = await Promise.all([
+      const [pRes, lRes, eRes, subRes, tplRes] = await Promise.all([
         api.getWorkoutPlans(),
         api.getWorkoutLogs(selectedDate),
         api.getExercises(),
-        api.getMyExerciseSubmissions().catch(() => ({ submissions: [] }))
+        api.getMyExerciseSubmissions().catch(() => ({ submissions: [] })),
+        api.getWorkoutTemplates().catch(() => ({ templates: [] }))
       ]);
       setPlans(pRes.plans);
       setLogs(lRes.logs);
       setSummary(lRes.summary);
       setExercises(eRes.exercises);
       setExSubmissions(subRes.submissions || []);
+      setTemplates(tplRes.templates || []);
     } finally {
       setLoading(false);
     }
@@ -186,6 +191,19 @@ export default function WorkoutsPage({ selectedDate }) {
     await loadAll();
   }
 
+  async function handleAdoptTemplate(tpl) {
+    setAdoptingId(tpl.id);
+    setExNotice('');
+    try {
+      await api.adoptWorkoutTemplate(tpl.id);
+      setShowTemplates(false);
+      await loadAll();
+      setExNotice(`Đã thêm lộ trình "${tpl.name}" vào lịch tập của bạn.`);
+    } finally {
+      setAdoptingId(null);
+    }
+  }
+
   async function handleCreateExercise(e) {
     e.preventDefault();
     setExErr('');
@@ -233,6 +251,10 @@ export default function WorkoutsPage({ selectedDate }) {
           <p className="text-sm text-[#5a5c53]">Tạo lịch tập tuần cho Gym hoặc chạy bộ, hoàn thành cả buổi chỉ với 1 chạm.</p>
         </div>
         <div className="flex flex-wrap gap-2.5">
+          <button type="button" onClick={() => setShowTemplates((v) => !v)} className="nk-btn-secondary bg-white">
+            <Sparkles className="w-4 h-4 text-[#2e5b44]" />
+            Lộ trình mẫu
+          </button>
           <button type="button" onClick={() => setShowExModal(true)} className="nk-btn-secondary bg-white">
             <Send className="w-4 h-4" />
             Đề xuất bài tập
@@ -255,6 +277,47 @@ export default function WorkoutsPage({ selectedDate }) {
             Đóng
           </button>
         </div>
+      )}
+
+      {(showTemplates || plans.length === 0) && templates.length > 0 && (
+        <section className="nk-card p-5 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h2 className="text-base font-medium flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#2e5b44]" />
+                Lộ trình tập mẫu chọn nhanh
+              </h2>
+              <p className="text-xs text-[#5a5c53]">Áp dụng ngay trong 1 chạm rồi tùy chỉnh sau nếu cần.</p>
+            </div>
+            {plans.length > 0 && (
+              <button type="button" onClick={() => setShowTemplates(false)} className="text-xs underline text-[#5a5c53] cursor-pointer">
+                Thu gọn
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {templates.map((tpl) => (
+              <div key={tpl.id} className="nk-surface p-4 flex flex-col justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-medium text-[#2e5b44]">{tpl.level}</div>
+                  <div className="text-sm font-medium mt-0.5">{tpl.name}</div>
+                  <p className="text-xs text-[#5a5c53] mt-1">{tpl.notes}</p>
+                  <div className="text-[11px] font-mono-num text-[#5a5c53] mt-2">
+                    {tpl.exercises.length} bài · {tpl.daysOfWeek.map((d) => DAYS.find((x) => x.id === d)?.label || d).join(', ')}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={adoptingId === tpl.id}
+                  onClick={() => handleAdoptTemplate(tpl)}
+                  className="w-full h-9 rounded-lg bg-[#2e5b44] text-white text-xs font-medium hover:bg-[#254a37] cursor-pointer"
+                >
+                  {adoptingId === tpl.id ? 'Đang thêm...' : 'Áp dụng lộ trình này'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Summary Strip */}

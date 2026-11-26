@@ -236,5 +236,61 @@ export function createTrackingRouter(db) {
     }
   });
 
+  router.get('/tracking/export', (req, res, next) => {
+    try {
+      const format = String(req.query.format || 'json').trim().toLowerCase();
+      if (!['json', 'csv'].includes(format)) {
+        throw new ValidationError('Định dạng xuất hỗ trợ json hoặc csv.');
+      }
+
+      const user = db.prepare('SELECT id, email, display_name, created_at FROM users WHERE id = ?').get(req.user.id);
+      const profile = db.prepare('SELECT * FROM profiles WHERE user_id = ?').get(req.user.id);
+      const foodLogs = db.prepare('SELECT * FROM food_logs WHERE user_id = ? ORDER BY date DESC, id DESC').all(req.user.id);
+      const workoutLogs = db.prepare('SELECT * FROM workout_logs WHERE user_id = ? ORDER BY date DESC, id DESC').all(req.user.id);
+      const weightLogs = db.prepare('SELECT * FROM weight_logs WHERE user_id = ? ORDER BY date DESC').all(req.user.id);
+      const waterLogs = db.prepare('SELECT * FROM water_logs WHERE user_id = ? ORDER BY date DESC, id DESC').all(req.user.id);
+
+      const dateTag = todayIso();
+      if (format === 'csv') {
+        const escapeCsv = (v) => {
+          const s = String(v ?? '');
+          return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+        };
+        const rows = [['type', 'date', 'title', 'category', 'quantity', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'note']];
+        for (const f of foodLogs) {
+          rows.push(['food', f.date, f.food_name, f.meal_type, `${f.servings} x ${f.serving_label}`, f.calories, f.protein_g, f.carbs_g, f.fat_g, '']);
+        }
+        for (const w of workoutLogs) {
+          rows.push(['workout', w.date, w.title, w.category, `${w.duration_min} min`, -w.calories_burned, '', '', '', w.notes]);
+        }
+        for (const wt of weightLogs) {
+          rows.push(['weight', wt.date, 'Cân nặng', 'body', `${wt.weight_kg} kg`, '', '', '', '', wt.note]);
+        }
+        for (const dr of waterLogs) {
+          rows.push(['water', dr.date, 'Nước uống', 'hydration', `${dr.amount_ml} ml`, '', '', '', '', '']);
+        }
+        const csv = '\uFEFF' + rows.map((r) => r.map(escapeCsv).join(',')).join('\n');
+        res.set('Content-Type', 'text/csv; charset=utf-8');
+        res.set('Content-Disposition', `attachment; filename="nhip-khoe-export-${dateTag}.csv"`);
+        return res.send(csv);
+      }
+
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        user,
+        profile,
+        foodLogs,
+        workoutLogs,
+        weightLogs,
+        waterLogs
+      };
+      res.set('Content-Type', 'application/json; charset=utf-8');
+      res.set('Content-Disposition', `attachment; filename="nhip-khoe-export-${dateTag}.json"`);
+      return res.send(JSON.stringify(payload, null, 2));
+    } catch (err) {
+      next(err);
+    }
+  });
+
   return router;
 }

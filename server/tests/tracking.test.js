@@ -96,5 +96,22 @@ describe('Tracking Module (Weights & Dashboard Analytics)', () => {
     assert.equal(dash.series.length, 7);
     assert.equal(dash.series[6].date, '2026-11-26');
     assert.equal(dash.series[6].weightKg, 69.5);
+
+    // Export JSON & CSV
+    const jsonExp = await fetch(`${baseUrl}/api/tracking/export?format=json`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    assert.equal(jsonExp.status, 200);
+    const exportedJson = await jsonExp.json();
+    assert.equal(exportedJson.foodLogs.length, 1);
+    assert.equal(exportedJson.waterLogs.length, 1);
+
+    const csvExp = await fetch(`${baseUrl}/api/tracking/export?format=csv`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    assert.equal(csvExp.status, 200);
+    const csvText = await csvExp.text();
+    assert.ok(csvText.includes('Cơm ức gà'));
+    assert.ok(csvText.includes('500 ml'));
   });
 });

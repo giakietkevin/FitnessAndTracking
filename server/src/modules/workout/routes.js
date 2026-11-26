@@ -7,6 +7,52 @@ const SUBMISSION_STATUSES = new Set(['pending', 'approved', 'rejected']);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DEFAULT_MET = { strength: 5.0, cardio: 7.5, mobility: 2.5 };
 
+const WORKOUT_TEMPLATES = [
+  {
+    id: 'beginner-home',
+    name: 'Vận động tại nhà (Người mới / 12+)',
+    goal: 'maintain',
+    level: 'Cơ bản · Không cần tạ',
+    daysOfWeek: ['Mon', 'Wed', 'Fri'],
+    notes: 'Phù hợp học sinh, sinh viên hoặc người mới tập tại nhà 30 phút/buổi.',
+    exercises: [
+      { name: 'Hít đất (Push-ups)', targetSets: 3, targetReps: 12, targetDurationMin: 10 },
+      { name: 'Plank', targetSets: 3, targetReps: 1, targetDurationMin: 8 },
+      { name: 'Nhảy dây (Jump Rope)', targetSets: 1, targetReps: 1, targetDurationMin: 12 },
+      { name: 'Giãn cơ & Mobility', targetSets: 1, targetReps: 1, targetDurationMin: 10 }
+    ]
+  },
+  {
+    id: 'fat-loss-burn',
+    name: 'Đốt mỡ toàn thân & Cardio (4 buổi)',
+    goal: 'cut',
+    level: 'Trung bình · Gym / Sân tập',
+    daysOfWeek: ['Mon', 'Tue', 'Thu', 'Sat'],
+    notes: 'Kết hợp bài tập đa khớp giữ cơ và cardio Zone 2 đốt mỡ bền vững.',
+    exercises: [
+      { name: 'Barbell Squat', targetSets: 3, targetReps: 10, targetDurationMin: 15 },
+      { name: 'Barbell / Dumbbell Row', targetSets: 3, targetReps: 10, targetDurationMin: 15 },
+      { name: 'Plank', targetSets: 3, targetReps: 1, targetDurationMin: 8 },
+      { name: 'Chạy bộ ngoài trời (Zone 2)', targetSets: 1, targetReps: 1, targetDurationMin: 25 }
+    ]
+  },
+  {
+    id: 'muscle-upper-lower',
+    name: 'Tăng cơ nền tảng Gym (4 buổi)',
+    goal: 'bulk',
+    level: 'Nền tảng · Phòng Gym',
+    daysOfWeek: ['Mon', 'Tue', 'Thu', 'Fri'],
+    notes: 'Tập trung các nhóm cơ lớn giúp tăng sức mạnh và khối lượng cơ bắp.',
+    exercises: [
+      { name: 'Barbell Squat', targetSets: 4, targetReps: 8, targetDurationMin: 18 },
+      { name: 'Romanian Deadlift', targetSets: 3, targetReps: 10, targetDurationMin: 16 },
+      { name: 'Bench Press', targetSets: 4, targetReps: 8, targetDurationMin: 18 },
+      { name: 'Pull-up / Lat Pulldown', targetSets: 4, targetReps: 10, targetDurationMin: 16 },
+      { name: 'Overhead Shoulder Press', targetSets: 3, targetReps: 10, targetDurationMin: 14 }
+    ]
+  }
+];
+
 function normalizeText(str) {
   return String(str || '')
     .normalize('NFD')
@@ -458,6 +504,63 @@ export function createWorkoutRouter(db) {
       const del = db.prepare('DELETE FROM exercises WHERE id = ? AND user_id IS NULL').run(id);
       if (del.changes === 0) throw new NotFoundError('Không tìm thấy bài tập trong thư viện chung.');
       res.json({ deleted: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/workout-plans/templates', (_req, res) => {
+    res.json({ templates: WORKOUT_TEMPLATES });
+  });
+
+  router.post('/workout-plans/from-template', (req, res, next) => {
+    try {
+      const templateId = String(req.body?.templateId || '').trim();
+      const tpl = WORKOUT_TEMPLATES.find((t) => t.id === templateId);
+      if (!tpl) {
+        throw new NotFoundError('Không tìm thấy lộ trình mẫu.');
+      }
+
+      db.exec('BEGIN');
+      let planId;
+      try {
+        const resPlan = db.prepare(`
+          INSERT INTO workout_plans (user_id, name, goal, days_of_week, notes)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(req.user.id, tpl.name, tpl.goal, JSON.stringify(tpl.daysOfWeek), tpl.notes);
+        planId = Number(resPlan.lastInsertRowid);
+
+        const findEx = db.prepare('SELECT * FROM exercises WHERE user_id IS NULL AND name = ? LIMIT 1');
+        const insertItem = db.prepare(`
+          INSERT INTO workout_plan_items (plan_id, exercise_id, exercise_name, category, target_sets, target_reps, target_weight_kg, target_duration_min, sort_order)
+          VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)
+        `);
+
+        tpl.exercises.forEach((item, idx) => {
+          const ex = findEx.get(item.name);
+          insertItem.run(
+            planId,
+            ex ? ex.id : null,
+            ex ? ex.name : item.name,
+            ex ? ex.category : 'strength',
+            item.targetSets ?? null,
+            item.targetReps ?? null,
+            item.targetDurationMin ?? 20,
+            idx
+          );
+        });
+        db.exec('COMMIT');
+      } catch (txErr) {
+        db.exec('ROLLBACK');
+        throw txErr;
+      }
+
+      const created = db.prepare('SELECT * FROM workout_plans WHERE id = ?').get(planId);
+      const createdItems = db
+        .prepare('SELECT * FROM workout_plan_items WHERE plan_id = ? ORDER BY sort_order ASC')
+        .all(planId)
+        .map(mapPlanItem);
+      res.status(201).json({ plan: mapPlan(created, createdItems) });
     } catch (err) {
       next(err);
     }

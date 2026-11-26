@@ -101,6 +101,8 @@ export const api = {
   createExercise: (payload) => request('/exercises', { method: 'POST', body: payload }),
 
   getWorkoutPlans: () => request('/workout-plans'),
+  getWorkoutTemplates: () => request('/workout-plans/templates'),
+  adoptWorkoutTemplate: (templateId) => request('/workout-plans/from-template', { method: 'POST', body: { templateId } }),
   createWorkoutPlan: (payload) => request('/workout-plans', { method: 'POST', body: payload }),
   updateWorkoutPlan: (id, payload) => request(`/workout-plans/${id}`, { method: 'PUT', body: payload }),
   deleteWorkoutPlan: (id) => request(`/workout-plans/${id}`, { method: 'DELETE' }),
@@ -113,5 +115,23 @@ export const api = {
   getWeights: (days = 30) => request(`/tracking/weights?days=${days}`),
   logWeight: (payload) => request('/tracking/weights', { method: 'POST', body: payload }),
   deleteWeight: (id) => request(`/tracking/weights/${id}`, { method: 'DELETE' }),
-  getDashboard: (date, days = 7) => request(`/tracking/dashboard?date=${encodeURIComponent(date)}&days=${days}`)
+  getDashboard: (date, days = 7) => request(`/tracking/dashboard?date=${encodeURIComponent(date)}&days=${days}`),
+  downloadExport: async (format = 'csv') => {
+    const token = getStoredToken();
+    const res = await fetch(`/api/tracking/export?format=${encodeURIComponent(format)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+    if (!res.ok) {
+      throw new Error('Không thể xuất dữ liệu.');
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nhip-khoe-export.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
 };

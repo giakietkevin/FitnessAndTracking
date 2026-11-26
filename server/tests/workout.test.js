@@ -138,4 +138,25 @@ describe('Workout Module (Exercises, Plans, Logs)', () => {
     assert.equal(updRes.status, 200);
     assert.equal((await updRes.json()).exercise.defaultDurationMin, 20);
   });
+
+  it('lists starter workout templates and adopts a template into user plans', async () => {
+    const user = await registerUser(baseUrl, 'tpl@example.com', 'Template User');
+
+    const tplRes = await fetch(`${baseUrl}/api/workout-plans/templates`, {
+      headers: { Authorization: `Bearer ${user.token}` }
+    });
+    assert.equal(tplRes.status, 200);
+    const { templates } = await tplRes.json();
+    assert.ok(templates.length >= 3);
+
+    const adoptRes = await fetch(`${baseUrl}/api/workout-plans/from-template`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.token}` },
+      body: JSON.stringify({ templateId: templates[0].id })
+    });
+    assert.equal(adoptRes.status, 201);
+    const { plan } = await adoptRes.json();
+    assert.equal(plan.name, templates[0].name);
+    assert.equal(plan.items.length, templates[0].exercises.length);
+  });
 });
