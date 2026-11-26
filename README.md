@@ -1,137 +1,40 @@
-# Fitness and Tracking Website - Microservices Architecture
+# Nhịp Khỏe — Fitness & Tracking Web App
 
-## Cấu trúc dự án
+Ứng dụng web theo dõi dinh dưỡng tự nhiên, tính calo & macro (Protein/Carbs/Fat), lập kế hoạch & nhật ký tập luyện (Gym/Cardio) và theo dõi biến thiên cân nặng cá nhân.
 
-Dự án được xây dựng theo kiến trúc microservices với các thành phần chính:
+## Kiến trúc & Công nghệ
 
-### 1. API Gateway (`/gateway`)
-- Điểm vào duy nhất cho tất cả các request từ client
-- Định tuyến request đến các microservices tương ứng
-- Xử lý authentication, rate limiting, logging
+- **Backend (`server/`):** Node.js (ESM), Express 5, SQLite tích hợp (`node:sqlite` với WAL & Foreign Keys), JWT Auth (`jsonwebtoken`), `bcryptjs`. Chia theo Modular Monolith gồm 4 module: `identity`, `nutrition`, `workout`, `tracking`.
+- **Frontend (`web/`):** React 19, Vite 6, Tailwind CSS v4 (không gian theo dõi tương tác tại `/app.html`) kết hợp trang giới thiệu theo bộ chuẩn `design-taste-frontend` tại `/`.
+- **Tài liệu thiết kế:**
+  - Intent: [docs/intent/fitness-tracking.md](docs/intent/fitness-tracking.md)
+  - Spec & Capability Map: [spec/SPEC-v1.md](spec/SPEC-v1.md), [spec/capability-map.md](spec/capability-map.md)
+  - Kế hoạch & Checklist: [tasks/plan.md](tasks/plan.md), [tasks/todo.md](tasks/todo.md)
 
-### 2. Microservices (`/services`)
+## Yêu cầu môi trường
 
-#### User Service (`/services/user-service`)
-- Quản lý người dùng (đăng ký, đăng nhập, profile)
-- Authentication & Authorization
-- JWT token management
-
-#### Fitness Service (`/services/fitness-service`)
-- Quản lý workouts (bài tập)
-- Quản lý exercises (động tác)
-- Tạo và chỉnh sửa chương trình tập luyện
-
-#### Tracking Service (`/services/tracking-service`)
-- Theo dõi tiến độ tập luyện
-- Quản lý metrics (cân nặng, số đo, v.v.)
-- Báo cáo và thống kê
-
-#### Notification Service (`/services/notification-service`)
-- Gửi thông báo cho người dùng
-- Real-time notifications (Socket.io)
-- Email/SMS notifications
-
-### 3. Shared Common (`/shared/common`)
-- Code dùng chung giữa các services
-- Logger, error handling, validation, constants
-
-### 4. Database (`/database`)
-- Database configurations
-- Migrations
+- **Node.js 22+** (khuyên dùng 24+, hỗ trợ `node:sqlite` sẵn không cần cài thêm database ngoài hay Docker).
 
 ## Cài đặt và chạy
 
-### Yêu cầu
-- Node.js 18+
-- Docker & Docker Compose (cho production)
-- MongoDB (hoặc sử dụng Docker)
+1. Cài dependencies cho toàn bộ workspace:
+   ```bash
+   npm install
+   ```
 
-### Development
+2. Chạy đồng thời Backend API (`http://localhost:3001`) và Frontend (`http://localhost:5173`):
+   ```bash
+   npm run dev
+   ```
+   - Trang giới thiệu: `http://localhost:5173/`
+   - Ứng dụng theo dõi (Đăng ký / Onboarding / Dashboard): `http://localhost:5173/app.html`
 
-1. Cài đặt dependencies cho từng service:
-```bash
-cd gateway && npm install
-cd ../services/user-service && npm install
-cd ../services/fitness-service && npm install
-cd ../services/tracking-service && npm install
-cd ../services/notification-service && npm install
-```
+3. Chạy kiểm thử Backend (`node:test`):
+   ```bash
+   npm test
+   ```
 
-2. Copy file `.env.example` thành `.env` và cấu hình:
-```bash
-cp gateway/.env.example gateway/.env
-cp services/user-service/.env.example services/user-service/.env
-# ... tương tự cho các services khác
-```
-
-3. Chạy từng service:
-```bash
-# Terminal 1
-cd gateway && npm run dev
-
-# Terminal 2
-cd services/user-service && npm run dev
-
-# Terminal 3
-cd services/fitness-service && npm run dev
-
-# Terminal 4
-cd services/tracking-service && npm run dev
-
-# Terminal 5
-cd services/notification-service && npm run dev
-```
-
-### Production với Docker
-
-```bash
-docker-compose up -d
-```
-
-## Ports
-
-- API Gateway: `3000`
-- User Service: `3001`
-- Fitness Service: `3002`
-- Tracking Service: `3003`
-- Notification Service: `3004`
-
-## Cấu trúc thư mục
-
-```
-FitnessAndTracking_Website/
-├── gateway/                 # API Gateway
-│   ├── src/
-│   ├── index.js
-│   ├── package.json
-│   └── Dockerfile
-├── services/               # Microservices
-│   ├── user-service/
-│   │   ├── src/
-│   │   │   ├── controllers/
-│   │   │   ├── models/
-│   │   │   ├── routes/
-│   │   │   └── middleware/
-│   │   ├── index.js
-│   │   ├── package.json
-│   │   └── Dockerfile
-│   ├── fitness-service/
-│   ├── tracking-service/
-│   └── notification-service/
-├── shared/                 # Shared code
-│   └── common/
-├── database/              # Database configs
-├── docker-compose.yml
-└── README.md
-```
-
-## Next Steps
-
-1. Implement logic cho từng service
-2. Setup database models và schemas
-3. Implement authentication middleware
-4. Setup API Gateway routing
-5. Add unit tests và integration tests
-6. Setup CI/CD pipeline
-
-
+4. Build bản production của Frontend (`web/dist/`):
+   ```bash
+   npm run build
+   ```

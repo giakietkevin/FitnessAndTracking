@@ -1,30 +1,19 @@
 {
-  "name": "fitness-and-tracking-microservices",
+  "name": "fitness-and-tracking",
   "version": "1.0.0",
-  "description": "Fitness and Tracking Website - Microservices Architecture",
+  "description": "Fitness & Tracking Web App — Nutrition, Workout Planning & Progress Analytics",
   "private": true,
-  "scripts": {
-    "install:all": "npm install && cd gateway && npm install && cd ../services/user-service && npm install && cd ../fitness-service && npm install && cd ../tracking-service && npm install && cd ../notification-service && npm install",
-    "start:gateway": "cd gateway && npm start",
-    "start:user": "cd services/user-service && npm start",
-    "start:fitness": "cd services/fitness-service && npm start",
-    "start:tracking": "cd services/tracking-service && npm start",
-    "start:notification": "cd services/notification-service && npm start",
-    "dev:gateway": "cd gateway && npm run dev",
-    "dev:user": "cd services/user-service && npm run dev",
-    "dev:fitness": "cd services/fitness-service && npm run dev",
-    "dev:tracking": "cd services/tracking-service && npm run dev",
-    "dev:notification": "cd services/notification-service && npm run dev"
-  },
-  "keywords": [
-    "microservices",
-    "fitness",
-    "tracking",
-    "nodejs",
-    "express"
+  "type": "module",
+  "workspaces": [
+    "server",
+    "web"
   ],
-  "author": "",
-  "license": "ISC"
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:server": "npm --workspace=server run dev",
+    "dev:web": "npm --workspace=web run dev",
+    "start": "npm --workspace=server run start",
+    "test": "npm --workspace=server test",
+    "build": "npm --workspace=web run build"
+  }
 }
-
-
