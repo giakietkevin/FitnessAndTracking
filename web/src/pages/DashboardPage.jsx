@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Dumbbell, Flame, Plus, Scale, Utensils } from 'lucide-react';
+import { Droplets, Dumbbell, Flame, Plus, Scale, Utensils } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -23,6 +23,7 @@ export default function DashboardPage({ selectedDate, onNavigate }) {
   const [weightInput, setWeightInput] = useState('');
   const [weightSaving, setWeightSaving] = useState(false);
   const [weightMsg, setWeightMsg] = useState('');
+  const [waterSaving, setWaterSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -52,6 +53,16 @@ export default function DashboardPage({ selectedDate, onNavigate }) {
       setTimeout(() => setWeightMsg(''), 2500);
     } finally {
       setWeightSaving(false);
+    }
+  }
+
+  async function handleQuickWater(amountMl) {
+    setWaterSaving(true);
+    try {
+      await api.addWaterLog({ date: selectedDate, amountMl });
+      await load();
+    } finally {
+      setWaterSaving(false);
     }
   }
 
@@ -215,6 +226,36 @@ export default function DashboardPage({ selectedDate, onNavigate }) {
               </button>
             </div>
           </form>
+
+          <div className="pt-4 border-t border-black/10 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="inline-flex items-center gap-1.5 font-medium text-[#22261f]">
+                <Droplets className="w-3.5 h-3.5 text-[#1e4d78]" />
+                Nước uống hôm nay
+              </span>
+              <span className="font-mono-num text-[#5a5c53]">
+                {today.waterMl || 0} / {today.waterTargetMl || 2100} ml
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-2 rounded-full bg-[#e2d9cb] overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-[#1e4d78] transition-all duration-300"
+                  style={{
+                    width: `${Math.min(100, Math.round(((today.waterMl || 0) / Math.max(1, today.waterTargetMl || 2100)) * 100))}%`
+                  }}
+                />
+              </div>
+              <button
+                type="button"
+                disabled={waterSaving}
+                onClick={() => handleQuickWater(250)}
+                className="px-2.5 h-7 rounded-lg bg-[#e8f0f7] text-[#1e4d78] text-xs font-medium hover:bg-[#dce8f3] cursor-pointer shrink-0"
+              >
+                {waterSaving ? '...' : '+250ml'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

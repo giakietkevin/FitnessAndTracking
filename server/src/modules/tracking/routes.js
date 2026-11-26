@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '../../middleware/auth.js';
 import { NotFoundError, ValidationError } from '../../middleware/errorHandler.js';
 import { calculateBodyMetrics } from '../identity/calculator.js';
+import { computeWaterTargetMl } from '../nutrition/routes.js';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -124,6 +125,11 @@ export function createTrackingRouter(db) {
         WHERE user_id = ? AND date = ?
       `).get(req.user.id, date);
 
+      const waterToday = db
+        .prepare('SELECT COALESCE(SUM(amount_ml), 0) AS totalMl FROM water_logs WHERE user_id = ? AND date = ?')
+        .get(req.user.id, date);
+      const waterTargetMl = computeWaterTargetMl(profile.weight_kg);
+
       const caloriesIn = Math.round(foodToday.calories);
       const caloriesOut = Math.round(workoutToday.caloriesBurned);
       const netCalories = caloriesIn - caloriesOut;
@@ -210,7 +216,9 @@ export function createTrackingRouter(db) {
           },
           mealsCount: foodToday.count,
           workoutsCount: workoutToday.count,
-          workoutMinutes: Math.round(workoutToday.durationMin)
+          workoutMinutes: Math.round(workoutToday.durationMin),
+          waterMl: waterToday.totalMl,
+          waterTargetMl
         },
         profileSummary: {
           weightKg: profile.weight_kg,

@@ -128,6 +128,45 @@ function runInTransaction(db, fn) {
   }
 }
 
+export function computeWaterTargetMl(weightKg) {
+  return Math.max(1500, Math.round((Number(weightKg) || 60) * 35));
+}
+
+function getUserWaterTarget(db, userId) {
+  const row = db.prepare('SELECT weight_kg FROM profiles WHERE user_id = ?').get(userId);
+  return computeWaterTargetMl(row?.weight_kg);
+}
+
+function hydrateCombo(db, comboRow) {
+  const items = db
+    .prepare('SELECT * FROM meal_combo_items WHERE combo_id = ? ORDER BY id ASC')
+    .all(comboRow.id)
+    .map((it) => ({
+      id: it.id,
+      foodId: it.food_id,
+      foodName: it.food_name,
+      servingLabel: it.serving_label,
+      servings: it.servings,
+      calories: it.calories,
+      proteinG: it.protein_g,
+      carbsG: it.carbs_g,
+      fatG: it.fat_g
+    }));
+
+  const totals = summarizeFoodLogs(items.map((it) => ({ ...it, mealType: comboRow.default_meal_type })));
+  return {
+    id: comboRow.id,
+    name: comboRow.name,
+    defaultMealType: comboRow.default_meal_type,
+    createdAt: comboRow.created_at,
+    items,
+    calories: totals.calories,
+    proteinG: totals.proteinG,
+    carbsG: totals.carbsG,
+    fatG: totals.fatG
+  };
+}
+
 export function summarizeFoodLogs(logs) {
   const byMeal = {
     breakfast: 0,
@@ -587,6 +626,270 @@ export function createNutritionRouter(db) {
       const del = db.prepare('DELETE FROM food_logs WHERE id = ? AND user_id = ?').run(id, req.user.id);
       if (del.changes === 0) {
         throw new NotFoundError('Không tìm thấy nhật ký bữa ăn.');
+      }
+      res.json({ deleted: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/food-logs/copy-day', (req, res, next) => {
+    try {
+      const fromDate = String(req.body?.fromDate || '').slice(0, 10);
+      const toDate = req.body?.toDate ? String(req.body.toDate).slice(0, 10) : todayIso();
+      const mealType = req.body?.mealType ? String(req.body.mealType) : '';
+
+      if (!DATE_RE.test(fromDate) || !DATE_RE.test(toDate)) {
+        throw new ValidationError('Định dạng ngày phải là YYYY-MM-DD.');
+      }
+      if (fromDate === toDate) {
+        throw new ValidationError('Ngày nguồn và ngày đích phải khác nhau.');
+      }
+      if (mealType && !MEAL_TYPES.has(mealType)) {
+        throw new ValidationError('Loại bữa ăn không hợp lệ.');
+      }
+
+      let sql = 'SELECT * FROM food_logs WHERE user_id = ? AND date = ?';
+      const params = [req.user.id, fromDate];
+      if (mealType) {
+        sql += ' AND meal_type = ?';
+        params.push(mealType);
+      }
+      sql += ' ORDER BY id ASC';
+
+      const sourceRows = db.prepare(sql).all(...params);
+      if (sourceRows.length === 0) {
+        throw new NotFoundError('Ngày nguồn chưa có món ăn nào để sao chép.');
+      }
+
+      const insertStmt = db.prepare(`
+        INSERT INTO food_logs (user_id, food_id, date, meal_type, food_name, serving_label, servings, calories, protein_g, carbs_g, fat_g)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      runInTransaction(db, () => {
+        for (const r of sourceRows) {
+          insertStmt.run(
+            req.user.id,
+            r.food_id,
+            toDate,
+            r.meal_type,
+            r.food_name,
+            r.serving_label,
+            r.servings,
+            r.calories,
+            r.protein_g,
+            r.carbs_g,
+            r.fat_g
+          );
+        }
+      });
+
+      res.status(201).json({ copiedCount: sourceRows.length, toDate });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/water-logs', (req, res, next) => {
+    try {
+      const date = req.query.date ? String(req.query.date).slice(0, 10) : todayIso();
+      if (!DATE_RE.test(date)) {
+        throw new ValidationError('Định dạng ngày phải là YYYY-MM-DD.');
+      }
+      const rows = db
+        .prepare('SELECT id, date, amount_ml AS amountMl, created_at AS createdAt FROM water_logs WHERE user_id = ? AND date = ? ORDER BY id DESC')
+        .all(req.user.id, date);
+      const totalMl = rows.reduce((sum, r) => sum + r.amountMl, 0);
+      res.json({
+        date,
+        logs: rows,
+        totalMl,
+        targetMl: getUserWaterTarget(db, req.user.id)
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/water-logs', (req, res, next) => {
+    try {
+      const date = req.body?.date ? String(req.body.date).slice(0, 10) : todayIso();
+      const amountMl = Math.round(Number(req.body?.amountMl));
+      if (!DATE_RE.test(date)) {
+        throw new ValidationError('Định dạng ngày phải là YYYY-MM-DD.');
+      }
+      if (!Number.isFinite(amountMl) || amountMl < 50 || amountMl > 3000) {
+        throw new ValidationError('Lượng nước mỗi lần nhập từ 50 ml đến 3000 ml.');
+      }
+
+      const result = db
+        .prepare('INSERT INTO water_logs (user_id, date, amount_ml) VALUES (?, ?, ?)')
+        .run(req.user.id, date, amountMl);
+      const created = db
+        .prepare('SELECT id, date, amount_ml AS amountMl, created_at AS createdAt FROM water_logs WHERE id = ?')
+        .get(Number(result.lastInsertRowid));
+      const sumRow = db
+        .prepare('SELECT COALESCE(SUM(amount_ml), 0) AS totalMl FROM water_logs WHERE user_id = ? AND date = ?')
+        .get(req.user.id, date);
+
+      res.status(201).json({
+        log: created,
+        totalMl: sumRow.totalMl,
+        targetMl: getUserWaterTarget(db, req.user.id)
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.delete('/water-logs/:id', (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const del = db.prepare('DELETE FROM water_logs WHERE id = ? AND user_id = ?').run(id, req.user.id);
+      if (del.changes === 0) {
+        throw new NotFoundError('Không tìm thấy bản ghi uống nước.');
+      }
+      res.json({ deleted: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/meal-combos', (req, res) => {
+    const combos = db
+      .prepare('SELECT * FROM meal_combos WHERE user_id = ? ORDER BY id DESC')
+      .all(req.user.id);
+    res.json({ combos: combos.map((c) => hydrateCombo(db, c)) });
+  });
+
+  router.post('/meal-combos', (req, res, next) => {
+    try {
+      const name = String(req.body?.name || '').trim();
+      const defaultMealType = String(req.body?.defaultMealType || req.body?.sourceMealType || 'lunch');
+      if (!name || name.length < 2) {
+        throw new ValidationError('Tên combo cần ít nhất 2 ký tự.');
+      }
+      if (!MEAL_TYPES.has(defaultMealType)) {
+        throw new ValidationError('Loại bữa ăn không hợp lệ.');
+      }
+
+      let sourceItems = Array.isArray(req.body?.items) ? req.body.items : null;
+      if (!sourceItems && req.body?.sourceDate) {
+        const sourceDate = String(req.body.sourceDate).slice(0, 10);
+        const sourceMealType = req.body?.sourceMealType ? String(req.body.sourceMealType) : '';
+        if (!DATE_RE.test(sourceDate)) {
+          throw new ValidationError('Ngày nguồn không hợp lệ.');
+        }
+        let sql = 'SELECT * FROM food_logs WHERE user_id = ? AND date = ?';
+        const params = [req.user.id, sourceDate];
+        if (sourceMealType) {
+          if (!MEAL_TYPES.has(sourceMealType)) throw new ValidationError('Bữa nguồn không hợp lệ.');
+          sql += ' AND meal_type = ?';
+          params.push(sourceMealType);
+        }
+        sql += ' ORDER BY id ASC';
+        sourceItems = db.prepare(sql).all(...params).map((r) => ({
+          foodId: r.food_id,
+          foodName: r.food_name,
+          servingLabel: r.serving_label,
+          servings: r.servings,
+          calories: r.calories,
+          proteinG: r.protein_g,
+          carbsG: r.carbs_g,
+          fatG: r.fat_g
+        }));
+      }
+
+      if (!sourceItems || sourceItems.length === 0) {
+        throw new ValidationError('Combo cần có ít nhất 1 món ăn.');
+      }
+
+      const comboRow = runInTransaction(db, () => {
+        const resCombo = db
+          .prepare('INSERT INTO meal_combos (user_id, name, default_meal_type) VALUES (?, ?, ?)')
+          .run(req.user.id, name, defaultMealType);
+        const comboId = Number(resCombo.lastInsertRowid);
+        const insItem = db.prepare(`
+          INSERT INTO meal_combo_items (combo_id, food_id, food_name, serving_label, servings, calories, protein_g, carbs_g, fat_g)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+
+        for (const it of sourceItems) {
+          insItem.run(
+            comboId,
+            it.foodId ?? null,
+            String(it.foodName || 'Món ăn').trim(),
+            String(it.servingLabel || '1 phần').trim(),
+            Number(it.servings ?? 1),
+            Math.round(Number(it.calories ?? 0)),
+            Number(it.proteinG ?? 0),
+            Number(it.carbsG ?? 0),
+            Number(it.fatG ?? 0)
+          );
+        }
+        return db.prepare('SELECT * FROM meal_combos WHERE id = ?').get(comboId);
+      });
+
+      res.status(201).json({ combo: hydrateCombo(db, comboRow) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/meal-combos/:id/apply', (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const combo = db.prepare('SELECT * FROM meal_combos WHERE id = ? AND user_id = ?').get(id, req.user.id);
+      if (!combo) {
+        throw new NotFoundError('Không tìm thấy combo bữa ăn.');
+      }
+
+      const date = req.body?.date ? String(req.body.date).slice(0, 10) : todayIso();
+      const mealType = String(req.body?.mealType || combo.default_meal_type);
+      if (!DATE_RE.test(date)) {
+        throw new ValidationError('Định dạng ngày phải là YYYY-MM-DD.');
+      }
+      if (!MEAL_TYPES.has(mealType)) {
+        throw new ValidationError('Loại bữa ăn không hợp lệ.');
+      }
+
+      const items = db.prepare('SELECT * FROM meal_combo_items WHERE combo_id = ? ORDER BY id ASC').all(id);
+      const insertStmt = db.prepare(`
+        INSERT INTO food_logs (user_id, food_id, date, meal_type, food_name, serving_label, servings, calories, protein_g, carbs_g, fat_g)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      runInTransaction(db, () => {
+        for (const it of items) {
+          insertStmt.run(
+            req.user.id,
+            it.food_id,
+            date,
+            mealType,
+            it.food_name,
+            it.serving_label,
+            it.servings,
+            it.calories,
+            it.protein_g,
+            it.carbs_g,
+            it.fat_g
+          );
+        }
+      });
+
+      res.status(201).json({ appliedCount: items.length, date, mealType });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.delete('/meal-combos/:id', (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const del = db.prepare('DELETE FROM meal_combos WHERE id = ? AND user_id = ?').run(id, req.user.id);
+      if (del.changes === 0) {
+        throw new NotFoundError('Không tìm thấy combo bữa ăn.');
       }
       res.json({ deleted: true });
     } catch (err) {

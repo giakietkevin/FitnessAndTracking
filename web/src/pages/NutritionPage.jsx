@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, Search, Send, Trash2, Utensils, X } from 'lucide-react';
+import { BookmarkPlus, Copy, Droplets, Plus, Search, Send, Trash2, Utensils, X } from 'lucide-react';
 import { api } from '../api/client.js';
+
+function shiftIsoDate(iso, deltaDays) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + deltaDays);
+  return d.toISOString().slice(0, 10);
+}
 
 const EMPTY_CUSTOM_FOOD = {
   name: '',
@@ -52,6 +58,12 @@ export default function NutritionPage({ selectedDate }) {
   const [servingsMap, setServingsMap] = useState({});
   const [busyId, setBusyId] = useState(null);
   const [submissions, setSubmissions] = useState([]);
+  const [water, setWater] = useState({ logs: [], totalMl: 0, targetMl: 2100 });
+  const [customWaterMl, setCustomWaterMl] = useState('300');
+  const [combos, setCombos] = useState([]);
+  const [comboDraftMeal, setComboDraftMeal] = useState(null);
+  const [comboDraftName, setComboDraftName] = useState('');
+  const [comboTargetMeal, setComboTargetMeal] = useState({});
   const [notice, setNotice] = useState('');
   const [submittingFoodId, setSubmittingFoodId] = useState(null);
 
@@ -61,13 +73,17 @@ export default function NutritionPage({ selectedDate }) {
   const loadLogs = useCallback(async () => {
     setLoading(true);
     try {
-      const [logsRes, subRes] = await Promise.all([
+      const [logsRes, subRes, waterRes, combosRes] = await Promise.all([
         api.getFoodLogs(selectedDate),
-        api.getMyFoodSubmissions().catch(() => ({ submissions: [] }))
+        api.getMyFoodSubmissions().catch(() => ({ submissions: [] })),
+        api.getWaterLogs(selectedDate).catch(() => ({ logs: [], totalMl: 0, targetMl: 2100 })),
+        api.getMealCombos().catch(() => ({ combos: [] }))
       ]);
       setLogs(logsRes.logs);
       setSummary(logsRes.summary);
       setSubmissions(subRes.submissions || []);
+      setWater(waterRes);
+      setCombos(combosRes.combos || []);
     } finally {
       setLoading(false);
     }
@@ -159,6 +175,73 @@ export default function NutritionPage({ selectedDate }) {
     }
   }
 
+  async function handleAddWater(amountMl) {
+    const val = Number(amountMl);
+    if (!Number.isFinite(val) || val < 50) return;
+    try {
+      await api.addWaterLog({ date: selectedDate, amountMl: val });
+      const waterRes = await api.getWaterLogs(selectedDate);
+      setWater(waterRes);
+    } catch (err) {
+      setNotice(err.message);
+    }
+  }
+
+  async function handleDeleteWater(id) {
+    await api.deleteWaterLog(id);
+    const waterRes = await api.getWaterLogs(selectedDate);
+    setWater(waterRes);
+  }
+
+  async function handleCopyYesterday() {
+    setNotice('');
+    try {
+      const fromDate = shiftIsoDate(selectedDate, -1);
+      const res = await api.copyFoodDay({ fromDate, toDate: selectedDate });
+      await loadLogs();
+      setNotice(`Đã sao chép ${res.copiedCount} món từ ngày ${fromDate}.`);
+    } catch (err) {
+      setNotice(err.message);
+    }
+  }
+
+  async function handleSaveMealCombo(e) {
+    e.preventDefault();
+    if (!comboDraftMeal || !comboDraftName.trim()) return;
+    setNotice('');
+    try {
+      await api.createMealCombo({
+        name: comboDraftName.trim(),
+        defaultMealType: comboDraftMeal,
+        sourceDate: selectedDate,
+        sourceMealType: comboDraftMeal
+      });
+      setComboDraftMeal(null);
+      setComboDraftName('');
+      await loadLogs();
+      setNotice('Đã lưu combo bữa ăn để dùng lại nhanh chỉ với 1 chạm.');
+    } catch (err) {
+      setNotice(err.message);
+    }
+  }
+
+  async function handleApplyCombo(combo) {
+    const targetMeal = comboTargetMeal[combo.id] || combo.defaultMealType;
+    setNotice('');
+    try {
+      const res = await api.applyMealCombo(combo.id, { date: selectedDate, mealType: targetMeal });
+      await loadLogs();
+      setNotice(`Đã thêm ${res.appliedCount} món từ combo "${combo.name}".`);
+    } catch (err) {
+      setNotice(err.message);
+    }
+  }
+
+  async function handleDeleteCombo(id) {
+    await api.deleteMealCombo(id);
+    await loadLogs();
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -166,14 +249,20 @@ export default function NutritionPage({ selectedDate }) {
           <h1 className="text-2xl md:text-3xl font-medium tracking-tight">Nhật ký Dinh dưỡng</h1>
           <p className="text-sm text-[#5a5c53]">Ghi nhận bữa ăn nhanh theo khẩu phần, ưu tiên thực phẩm tự nhiên.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => { setModalMeal('lunch'); setModalTab('search'); }}
-          className="nk-btn-primary"
-        >
-          <Plus className="w-4 h-4" />
-          Thêm món nhanh
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button type="button" onClick={handleCopyYesterday} className="nk-btn-secondary bg-white">
+            <Copy className="w-4 h-4" />
+            Chép từ hôm qua
+          </button>
+          <button
+            type="button"
+            onClick={() => { setModalMeal('lunch'); setModalTab('search'); }}
+            className="nk-btn-primary"
+          >
+            <Plus className="w-4 h-4" />
+            Thêm món nhanh
+          </button>
+        </div>
       </div>
 
       {notice && (
@@ -208,6 +297,83 @@ export default function NutritionPage({ selectedDate }) {
         </div>
       </div>
 
+      {/* Daily Water Intake Tracker */}
+      <section className="nk-card p-5 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 text-base font-medium">
+              <Droplets className="w-4 h-4 text-[#1e4d78]" />
+              <span>Theo dõi nước uống</span>
+              <span className="font-mono-num text-sm text-[#1e4d78]">
+                {water.totalMl} / {water.targetMl} ml
+              </span>
+            </div>
+            <p className="text-xs text-[#5a5c53]">
+              Mục tiêu khuyến nghị dựa theo cân nặng (~35 ml/kg mỗi ngày).
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {[200, 350, 500].map((ml) => (
+              <button
+                key={ml}
+                type="button"
+                onClick={() => handleAddWater(ml)}
+                className="px-3 h-9 rounded-xl bg-[#e8f0f7] text-[#1e4d78] text-xs font-medium font-mono-num hover:bg-[#dce8f3] cursor-pointer"
+              >
+                +{ml}ml
+              </button>
+            ))}
+            <div className="inline-flex items-center gap-1.5">
+              <input
+                type="number"
+                min={50}
+                max={3000}
+                step={50}
+                aria-label="Lượng nước tùy chỉnh (ml)"
+                value={customWaterMl}
+                onChange={(e) => setCustomWaterMl(e.target.value)}
+                className="nk-input w-20 h-9 py-1 text-xs font-mono-num"
+              />
+              <button
+                type="button"
+                onClick={() => handleAddWater(customWaterMl)}
+                className="px-3 h-9 rounded-xl bg-[#22261f] text-[#efe9e0] text-xs font-medium cursor-pointer"
+              >
+                Thêm ml
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="h-2.5 rounded-full bg-[#e2d9cb] overflow-hidden">
+          <div
+            className="h-full rounded-full bg-[#1e4d78] transition-all duration-300"
+            style={{ width: `${Math.min(100, Math.round((water.totalMl / Math.max(1, water.targetMl)) * 100))}%` }}
+          />
+        </div>
+
+        {water.logs.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {water.logs.map((w) => (
+              <span
+                key={w.id}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#efe9e0] text-xs font-mono-num text-[#22261f]"
+              >
+                +{w.amountMl}ml
+                <button
+                  type="button"
+                  aria-label={`Xóa ${w.amountMl}ml`}
+                  onClick={() => handleDeleteWater(w.id)}
+                  className="text-[#5a5c53] hover:text-[#9e2a1f] cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </section>
+
       {/* Meal Sections */}
       {loading && logs.length === 0 ? (
         <div className="nk-card p-8 text-center text-sm text-[#5a5c53]">Đang tải nhật ký bữa ăn...</div>
@@ -223,8 +389,22 @@ export default function NutritionPage({ selectedDate }) {
                     <h2 className="text-lg font-medium">{meal.label}</h2>
                     <p className="text-xs text-[#5a5c53]">{meal.hint}</p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <span className="text-sm font-medium font-mono-num">{mealCals} kcal</span>
+                    {mealLogs.length > 0 && (
+                      <button
+                        type="button"
+                        title="Lưu bữa này thành combo"
+                        onClick={() => {
+                          setComboDraftMeal(meal.id);
+                          setComboDraftName(`Combo ${meal.label.toLowerCase()}`);
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 h-9 rounded-xl bg-[#efe9e0] text-[#22261f] text-xs font-medium hover:bg-[#e2d9cb] cursor-pointer"
+                      >
+                        <BookmarkPlus className="w-3.5 h-3.5" />
+                        Lưu combo
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => { setModalMeal(meal.id); setModalTab('search'); }}
@@ -235,6 +415,30 @@ export default function NutritionPage({ selectedDate }) {
                     </button>
                   </div>
                 </div>
+
+                {comboDraftMeal === meal.id && (
+                  <form onSubmit={handleSaveMealCombo} className="flex items-center gap-2 bg-[#efe9e0] p-2.5 rounded-xl">
+                    <input
+                      type="text"
+                      required
+                      minLength={2}
+                      value={comboDraftName}
+                      onChange={(e) => setComboDraftName(e.target.value)}
+                      placeholder="Đặt tên combo..."
+                      className="nk-input h-9 text-xs"
+                    />
+                    <button type="submit" className="px-3 h-9 rounded-xl bg-[#2e5b44] text-white text-xs font-medium shrink-0 cursor-pointer">
+                      Lưu
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setComboDraftMeal(null)}
+                      className="px-2.5 h-9 rounded-xl text-xs text-[#5a5c53] cursor-pointer"
+                    >
+                      Hủy
+                    </button>
+                  </form>
+                )}
 
                 {mealLogs.length === 0 ? (
                   <div className="nk-surface p-4 text-xs text-[#5a5c53] flex items-center gap-2">
@@ -276,6 +480,68 @@ export default function NutritionPage({ selectedDate }) {
           })}
         </div>
       )}
+
+      {/* Saved Meal Combos */}
+      <section className="nk-card p-5 space-y-3">
+        <div>
+          <h2 className="text-base font-medium">Combo bữa ăn hay dùng</h2>
+          <p className="text-xs text-[#5a5c53]">
+            Bấm “Lưu combo” ngay trên bất kỳ bữa ăn nào phía trên để dùng lại nhiều món trong 1 chạm.
+          </p>
+        </div>
+
+        {combos.length === 0 ? (
+          <div className="nk-surface p-4 text-xs text-[#5a5c53]">
+            Chưa có combo nào được lưu. Thêm món vào một bữa rồi bấm “Lưu combo”.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {combos.map((combo) => (
+              <div key={combo.id} className="nk-surface p-4 flex flex-col justify-between gap-3">
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="text-sm font-medium">{combo.name}</div>
+                    <button
+                      type="button"
+                      aria-label={`Xóa combo ${combo.name}`}
+                      onClick={() => handleDeleteCombo(combo.id)}
+                      className="text-[#5a5c53] hover:text-[#9e2a1f] cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="text-xs text-[#5a5c53] font-mono-num mt-0.5">
+                    {combo.items.length} món · {combo.calories} kcal · {combo.proteinG}g P · {combo.carbsG}g C · {combo.fatG}g F
+                  </div>
+                  <div className="text-xs text-[#5a5c53] mt-1 truncate">
+                    {combo.items.map((it) => it.foodName).join(', ')}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <select
+                    aria-label={`Chọn bữa áp dụng cho ${combo.name}`}
+                    value={comboTargetMeal[combo.id] || combo.defaultMealType}
+                    onChange={(e) => setComboTargetMeal((m) => ({ ...m, [combo.id]: e.target.value }))}
+                    className="h-9 px-2.5 rounded-lg bg-white border border-black/15 text-xs"
+                  >
+                    {MEALS.map((m) => (
+                      <option key={m.id} value={m.id}>{m.label}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyCombo(combo)}
+                    className="flex-1 h-9 px-3 rounded-lg bg-[#2e5b44] text-white text-xs font-medium hover:bg-[#254a37] cursor-pointer"
+                  >
+                    Ghi vào ngày {selectedDate.slice(5)}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* User Food Submissions Tracking Card */}
       <section className="nk-card p-5 space-y-3">

@@ -71,6 +71,13 @@ describe('Tracking Module (Weights & Dashboard Analytics)', () => {
       })
     });
 
+    // Log water on 2026-11-26
+    await fetch(`${baseUrl}/api/water-logs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ date: '2026-11-26', amountMl: 500 })
+    });
+
     const dashRes = await fetch(`${baseUrl}/api/tracking/dashboard?date=2026-11-26&days=7`, {
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -82,6 +89,8 @@ describe('Tracking Module (Weights & Dashboard Analytics)', () => {
     assert.equal(dash.today.netCalories, 290);
     assert.equal(dash.today.mealsCount, 1);
     assert.equal(dash.today.workoutsCount, 1);
+    assert.equal(dash.today.waterMl, 500);
+    assert.ok(dash.today.waterTargetMl >= 1500);
     assert.equal(dash.profileSummary.weightKg, 69.5);
     assert.equal(dash.streakDays, 1);
     assert.equal(dash.series.length, 7);

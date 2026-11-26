@@ -67,6 +67,16 @@ export const api = {
   getFoodLogs: (date) => request(`/food-logs?date=${encodeURIComponent(date)}`),
   createFoodLog: (payload) => request('/food-logs', { method: 'POST', body: payload }),
   deleteFoodLog: (id) => request(`/food-logs/${id}`, { method: 'DELETE' }),
+  copyFoodDay: (payload) => request('/food-logs/copy-day', { method: 'POST', body: payload }),
+
+  getWaterLogs: (date) => request(`/water-logs?date=${encodeURIComponent(date)}`),
+  addWaterLog: (payload) => request('/water-logs', { method: 'POST', body: payload }),
+  deleteWaterLog: (id) => request(`/water-logs/${id}`, { method: 'DELETE' }),
+
+  getMealCombos: () => request('/meal-combos'),
+  createMealCombo: (payload) => request('/meal-combos', { method: 'POST', body: payload }),
+  applyMealCombo: (id, payload) => request(`/meal-combos/${id}/apply`, { method: 'POST', body: payload }),
+  deleteMealCombo: (id) => request(`/meal-combos/${id}`, { method: 'DELETE' }),
 
   getExercises: (q = '', type = '') => {
     const params = new URLSearchParams();

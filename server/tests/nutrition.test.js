@@ -250,4 +250,99 @@ describe('Nutrition Module (Foods & Daily Food Logs)', () => {
     assert.equal(mineBody.submissions.length, 1);
     assert.equal(mineBody.submissions[0].status, 'approved');
   });
+
+  it('tracks daily water, copies meals across dates, and saves/applies meal combos', async () => {
+    const userA = await registerUser(baseUrl, 'combo@example.com', 'Combo User');
+    const userB = await registerUser(baseUrl, 'combo-other@example.com', 'Other User');
+
+    // Water tracking
+    const addWater = await fetch(`${baseUrl}/api/water-logs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${userA.token}` },
+      body: JSON.stringify({ date: '2026-11-25', amountMl: 350 })
+    });
+    assert.equal(addWater.status, 201);
+    const waterBody = await addWater.json();
+    assert.equal(waterBody.totalMl, 350);
+    assert.ok(waterBody.targetMl >= 1500);
+
+    // Log 2 foods on 2026-11-25 breakfast
+    await fetch(`${baseUrl}/api/food-logs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${userA.token}` },
+      body: JSON.stringify({
+        date: '2026-11-25',
+        mealType: 'breakfast',
+        foodName: 'Phở bò tái chín',
+        calories: 480,
+        proteinG: 26,
+        carbsG: 62,
+        fatG: 12,
+        servings: 1
+      })
+    });
+    await fetch(`${baseUrl}/api/food-logs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${userA.token}` },
+      body: JSON.stringify({
+        date: '2026-11-25',
+        mealType: 'breakfast',
+        foodName: 'Cà phê sữa đá',
+        calories: 140,
+        proteinG: 2,
+        carbsG: 20,
+        fatG: 5,
+        servings: 1
+      })
+    });
+
+    // Save 2026-11-25 breakfast as a combo
+    const comboRes = await fetch(`${baseUrl}/api/meal-combos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${userA.token}` },
+      body: JSON.stringify({
+        name: 'Combo Sáng Quen Thuộc',
+        defaultMealType: 'breakfast',
+        sourceDate: '2026-11-25',
+        sourceMealType: 'breakfast'
+      })
+    });
+    assert.equal(comboRes.status, 201);
+    const { combo } = await comboRes.json();
+    assert.equal(combo.items.length, 2);
+    assert.equal(combo.calories, 620);
+
+    // User B cannot apply User A's combo
+    const bApply = await fetch(`${baseUrl}/api/meal-combos/${combo.id}/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${userB.token}` },
+      body: JSON.stringify({ date: '2026-11-26' })
+    });
+    assert.equal(bApply.status, 404);
+
+    // Apply combo to 2026-11-26
+    const applyRes = await fetch(`${baseUrl}/api/meal-combos/${combo.id}/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${userA.token}` },
+      body: JSON.stringify({ date: '2026-11-26' })
+    });
+    assert.equal(applyRes.status, 201);
+
+    // Copy 2026-11-25 to 2026-11-27
+    const copyRes = await fetch(`${baseUrl}/api/food-logs/copy-day`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${userA.token}` },
+      body: JSON.stringify({ fromDate: '2026-11-25', toDate: '2026-11-27' })
+    });
+    assert.equal(copyRes.status, 201);
+    const copyBody = await copyRes.json();
+    assert.equal(copyBody.copiedCount, 2);
+
+    const day27 = await (
+      await fetch(`${baseUrl}/api/food-logs?date=2026-11-27`, {
+        headers: { Authorization: `Bearer ${userA.token}` }
+      })
+    ).json();
+    assert.equal(day27.summary.calories, 620);
+  });
 });

@@ -144,10 +144,40 @@ CREATE TABLE IF NOT EXISTS food_submissions (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS water_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,
+  amount_ml INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS meal_combos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  default_meal_type TEXT NOT NULL DEFAULT 'lunch' CHECK (default_meal_type IN ('breakfast', 'lunch', 'dinner', 'snack')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS meal_combo_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  combo_id INTEGER NOT NULL REFERENCES meal_combos(id) ON DELETE CASCADE,
+  food_id INTEGER REFERENCES foods(id) ON DELETE SET NULL,
+  food_name TEXT NOT NULL,
+  serving_label TEXT NOT NULL DEFAULT '1 phần',
+  servings REAL NOT NULL DEFAULT 1,
+  calories REAL NOT NULL DEFAULT 0,
+  protein_g REAL NOT NULL DEFAULT 0,
+  carbs_g REAL NOT NULL DEFAULT 0,
+  fat_g REAL NOT NULL DEFAULT 0
+);
+
 CREATE INDEX IF NOT EXISTS idx_food_logs_user_date ON food_logs(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_workout_logs_user_date ON workout_logs(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_weight_logs_user_date ON weight_logs(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_food_submissions_status ON food_submissions(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_water_logs_user_date ON water_logs(user_id, date);
 `;
 
 function ensureMigrations(db) {
