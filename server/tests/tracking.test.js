@@ -114,4 +114,83 @@ describe('Tracking Module (Weights & Dashboard Analytics)', () => {
     assert.ok(csvText.includes('Cơm ức gà'));
     assert.ok(csvText.includes('500 ml'));
   });
+
+  it('designs a personalized nutrition/workout/macro roadmap with completion projection and applies it', async () => {
+    const reg = await fetch(`${baseUrl}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'roadmap@example.com', password: 'password123', displayName: 'Roadmap User' })
+    });
+    const { token } = await reg.json();
+
+    await fetch(`${baseUrl}/api/profile`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        gender: 'male',
+        age: 26,
+        heightCm: 174,
+        weightKg: 76,
+        activityLevel: 'moderate',
+        goalType: 'cut',
+        targetWeightKg: 70
+      })
+    });
+
+    const designRes = await fetch(`${baseUrl}/api/tracking/roadmap/design`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        goalType: 'cut',
+        targetWeightKg: 70,
+        weeklySessions: 4,
+        workoutStyle: 'gym'
+      })
+    });
+    assert.equal(designRes.status, 200);
+    const { roadmap } = await designRes.json();
+
+    assert.equal(roadmap.goalType, 'cut');
+    assert.ok(roadmap.macroBreakdown.protein.grams > 0);
+    assert.ok(roadmap.macroBreakdown.carbs.grams > 0);
+    assert.ok(roadmap.macroBreakdown.fat.grams > 0);
+    assert.equal(
+      roadmap.macroBreakdown.protein.percent +
+        roadmap.macroBreakdown.carbs.percent +
+        roadmap.macroBreakdown.fat.percent,
+      100
+    );
+    assert.equal(roadmap.nutritionPlan.meals.length, 4);
+    assert.equal(roadmap.workoutPlan.schedule.length, 4);
+    assert.ok(roadmap.projection.estimatedWeeks >= 10);
+    assert.match(roadmap.projection.estimatedCompletionDate, /^\d{4}-\d{2}-\d{2}$/);
+    assert.equal(roadmap.projection.milestones.length, 3);
+
+    // Apply both workout plan and sample meals to 2026-11-27
+    const applyRes = await fetch(`${baseUrl}/api/tracking/roadmap/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        goalType: 'cut',
+        targetWeightKg: 70,
+        weeklySessions: 4,
+        workoutStyle: 'gym',
+        saveWorkoutPlan: true,
+        logMealsDate: '2026-11-27'
+      })
+    });
+    assert.equal(applyRes.status, 201);
+    const applyBody = await applyRes.json();
+    assert.ok(applyBody.createdPlanId);
+    assert.ok(applyBody.loggedMealsCount >= 4);
+
+    // Verify food logs & workout plan created
+    const logs = await (
+      await fetch(`${baseUrl}/api/food-logs?date=2026-11-27`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+    ).json();
+    assert.ok(logs.logs.length >= 4);
+    assert.ok(logs.summary.calories > 1000);
+  });
 });

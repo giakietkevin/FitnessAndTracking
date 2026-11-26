@@ -3,6 +3,7 @@ import { requireAuth } from '../../middleware/auth.js';
 import { NotFoundError, ValidationError } from '../../middleware/errorHandler.js';
 import { calculateBodyMetrics } from '../identity/calculator.js';
 import { computeWaterTargetMl } from '../nutrition/routes.js';
+import { buildPersonalizedRoadmap } from './roadmap.js';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -287,6 +288,129 @@ export function createTrackingRouter(db) {
       res.set('Content-Type', 'application/json; charset=utf-8');
       res.set('Content-Disposition', `attachment; filename="nhip-khoe-export-${dateTag}.json"`);
       return res.send(JSON.stringify(payload, null, 2));
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/tracking/roadmap', (req, res, next) => {
+    try {
+      const roadmap = buildPersonalizedRoadmap(db, req.user.id);
+      res.json({ roadmap });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/tracking/roadmap/design', (req, res, next) => {
+    try {
+      const roadmap = buildPersonalizedRoadmap(db, req.user.id, req.body || {});
+      res.json({ roadmap });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/tracking/roadmap/apply', (req, res, next) => {
+    try {
+      const roadmap = buildPersonalizedRoadmap(db, req.user.id, req.body || {});
+      const syncProfile = req.body?.syncProfile !== false;
+      const saveWorkoutPlan = Boolean(req.body?.saveWorkoutPlan);
+      const logMealsDate = req.body?.logMealsDate ? String(req.body.logMealsDate).slice(0, 10) : '';
+
+      if (logMealsDate && !DATE_RE.test(logMealsDate)) {
+        throw new ValidationError('Định dạng ngày áp dụng thực đơn phải là YYYY-MM-DD.');
+      }
+
+      let createdPlanId = null;
+      let loggedMealsCount = 0;
+
+      db.exec('BEGIN');
+      try {
+        if (syncProfile) {
+          db.prepare(`
+            UPDATE profiles
+            SET goal_type = ?, activity_level = ?, target_weight_kg = ?, target_date = ?, updated_at = datetime('now')
+            WHERE user_id = ?
+          `).run(
+            roadmap.goalType,
+            roadmap.activityLevel,
+            roadmap.bodyMetrics.targetWeightKg,
+            roadmap.projection.preferredDate || roadmap.projection.estimatedCompletionDate,
+            req.user.id
+          );
+        }
+
+        if (saveWorkoutPlan) {
+          const planRes = db.prepare(`
+            INSERT INTO workout_plans (user_id, name, goal, days_of_week, notes)
+            VALUES (?, ?, ?, ?, ?)
+          `).run(
+            req.user.id,
+            roadmap.workoutPlan.planName,
+            roadmap.goalType,
+            JSON.stringify(roadmap.workoutPlan.daysOfWeek),
+            roadmap.projection.timelineNote
+          );
+          createdPlanId = Number(planRes.lastInsertRowid);
+
+          const insPlanItem = db.prepare(`
+            INSERT INTO workout_plan_items (
+              plan_id, exercise_id, exercise_name, category, target_sets, target_reps,
+              target_weight_kg, target_duration_min, sort_order
+            ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)
+          `);
+          roadmap.workoutPlan.planItems.forEach((it, idx) => {
+            insPlanItem.run(
+              createdPlanId,
+              it.exerciseId,
+              it.exerciseName,
+              it.category,
+              it.targetSets ?? null,
+              it.targetReps ?? null,
+              it.targetDurationMin,
+              idx
+            );
+          });
+        }
+
+        if (logMealsDate) {
+          const insFoodLog = db.prepare(`
+            INSERT INTO food_logs (user_id, food_id, date, meal_type, food_name, serving_label, servings, calories, protein_g, carbs_g, fat_g)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          for (const meal of roadmap.nutritionPlan.meals) {
+            for (const item of meal.items) {
+              insFoodLog.run(
+                req.user.id,
+                item.foodId,
+                logMealsDate,
+                meal.mealType,
+                item.foodName,
+                item.servingLabel,
+                item.servings,
+                item.calories,
+                item.proteinG,
+                item.carbsG,
+                item.fatG
+              );
+              loggedMealsCount += 1;
+            }
+          }
+        }
+
+        db.exec('COMMIT');
+      } catch (txErr) {
+        db.exec('ROLLBACK');
+        throw txErr;
+      }
+
+      res.status(201).json({
+        applied: true,
+        createdPlanId,
+        loggedMealsCount,
+        roadmap
+      });
     } catch (err) {
       next(err);
     }
